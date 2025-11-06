@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="afercon_pay">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>afercon_pay</title>
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <script src="https://www.gstatic.com/firebasejs/8.6.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.6.1/firebase-firestore.js"></script>
+  <script>
+    // Your web app's Firebase configuration
+    var firebaseConfig = {
+      apiKey: "AIzaSyCh_5G_mN9-ObQ6P0N5UQjIX_aZKb9YhQA",
+      authDomain: "aferconpay1.firebaseapp.com",
+      projectId: "aferconpay1",
+      storageBucket: "aferconpay1.firebasestorage.app",
+      messagingSenderId: "103223415683",
+      appId: "1:103223415683:web:ab313581351da759c29cb6",
+      measurementId: "G-NL8QGTR895"
+    };
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+
+    // SOLUÇÃO: Força o Firestore a usar long-polling para resolver erros de rede.
+    firebase.firestore().settings({
+      experimentalForceLongPolling: true,
+      cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
+    });
+
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

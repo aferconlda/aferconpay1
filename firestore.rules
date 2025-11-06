@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===== FUNÇÕES AUXILIARES =====
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isVerified() {
+      // Verifica se o utilizador está autenticado E se o seu email foi verificado.
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isUpdatingAllowedFields() {
+      let isBalanceUnchanged = request.resource.data.balance == resource.data.balance;
+      let isFloatBalanceUnchanged = request.resource.data.floatBalance == resource.data.floatBalance;
+      let isCommissionBalanceUnchanged = request.resource.data.commissionBalance == resource.data.commissionBalance;
+      return isBalanceUnchanged && isFloatBalanceUnchanged && isCommissionBalanceUnchanged;
+    }
+
+    // ===== DADOS DO UTILIZADOR =====
+    match /users/{userId} {
+      allow create: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow update: if isOwner(userId) && isUpdatingAllowedFields();
+      allow delete: if false;
+    }
+
+    // ===== SUBCOLEÇÕES DO UTILIZADOR =====
+    match /users/{userId}/{collection}/{docId} {
+      allow create, read, update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    // ===== PEDIDOS (TRANSAÇÕES) - SEGURANÇA RESTAURADA =====
+    // Estas operações exigem, corretamente, que o utilizador tenha o email verificado.
+    match /withdrawal_requests/{reqId} {
+      allow create: if isVerified() && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+
+    match /credit_requests/{reqId} {
+      allow create: if isVerified() && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+    
+    match /foreign_withdrawal_requests/{reqId} {
+      allow create: if isVerified() && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+
+    match /transfer_requests/{transferId} {
+      allow create: if isVerified() && request.resource.data.senderId == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+  }
+}

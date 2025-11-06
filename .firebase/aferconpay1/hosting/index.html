@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="afercon_pay">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png?v=3">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png?v=3"/>
+
+  <title>afercon_pay</title>
+  <link rel="manifest" href="manifest.json">
+
+  <script>
+    // Forcefully unregister any old service workers to clear caches.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+        }
+      });
+    }
+  </script>
+
+  <style>
+    body, html {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      /* A green to blue gradient */
+      background: linear-gradient(45deg, #00A651, #007BFF);
+      overflow: hidden; /* Hide scrollbars */
+    }
+    .loading-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      height: 100vh;
+    }
+    .loading-container h1 {
+      color: white;
+      font-size: 3em;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="loading-container">
+    <h1>Afercon Pay</h1>
+  </div>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

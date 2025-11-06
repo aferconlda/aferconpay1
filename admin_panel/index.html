@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Administração - Afercon Pay</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- SDKs do Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
+</head>
+<body>
+
+    <div id="login-section" class="container">
+        <h2>Login do Administrador</h2>
+        <input type="email" id="email" placeholder="Email" required>
+        <input type="password" id="password" placeholder="Senha" required>
+        <button id="login-button">Entrar</button>
+        <p id="error-message" class="error-message hidden"></p>
+    </div>
+
+    <div id="dashboard-section" class="container hidden">
+        <header>
+            <h1>Painel de Administração</h1>
+            <div id="admin-info">
+                Logado como: <span id="admin-email"></span>
+                <button id="logout-button">Sair</button>
+            </div>
+        </header>
+        
+        <main id="dashboard-main">
+            <!-- Área para mostrar as listas de pedidos -->
+            <section id="requests-lists">
+                
+                <div class="list-container">
+                    <h2>Pedidos de Levantamento Pendentes</h2>
+                    <div id="withdrawal-requests-list" class="request-list">
+                        <!-- Os pedidos de levantamento serão inseridos aqui pelo JavaScript -->
+                    </div>
+                </div>
+
+                <div class="list-container">
+                    <h2>Pedidos de Crédito Pendentes</h2>
+                    <div id="credit-requests-list" class="request-list">
+                        <!-- Os pedidos de crédito serão inseridos aqui -->
+                    </div>
+                </div>
+
+                <div class="list-container">
+                    <h2>Pedidos de Transferência Pendentes</h2>
+                    <div id="transfer-requests-list" class="request-list">
+                        <!-- Os pedidos de transferência serão inseridos aqui -->
+                    </div>
+                </div>
+
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

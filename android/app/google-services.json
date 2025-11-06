@@ -1,0 +1,186 @@
+{
+  "project_info": {
+    "project_number": "103223415683",
+    "project_id": "aferconpay1",
+    "storage_bucket": "aferconpay1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:103223415683:android:398b9044e81374edc29cb6",
+        "android_client_info": {
+          "package_name": "com.afercon.pay"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "103223415683-n58617fht5s636utbfpdajpd2lgiadsr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJH65ODUdDLwEKC1yCnMS-h5KMCxgPDaE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "103223415683-n58617fht5s636utbfpdajpd2lgiadsr.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "103223415683-47ej9aa0fkshgf4kplo69bp4pfj5p0di.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.aferconn.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:103223415683:android:1c65fbd3d72310f4c29cb6",
+        "android_client_info": {
+          "package_name": "com.aferconpay.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "103223415683-bqen6pta6lmmrod3aq33h95niib06bh7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aferconpay.app",
+            "certificate_hash": "a7fa359bc4f51e1322bb9c2dff4378e7f21dc1e3"
+          }
+        },
+        {
+          "client_id": "103223415683-g1ltng84keq6mchc88o0u0091bk11f6i.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aferconpay.app",
+            "certificate_hash": "e6d153c79049a331878ad87eca20d1e34ecdf847"
+          }
+        },
+        {
+          "client_id": "103223415683-mqlm1ptmp0ui112a15ocu2vciuc55k0h.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aferconpay.app",
+            "certificate_hash": "57a02963450782e16f9917a0527ff6204ca0c587"
+          }
+        },
+        {
+          "client_id": "103223415683-n58617fht5s636utbfpdajpd2lgiadsr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJH65ODUdDLwEKC1yCnMS-h5KMCxgPDaE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "103223415683-n58617fht5s636utbfpdajpd2lgiadsr.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "103223415683-47ej9aa0fkshgf4kplo69bp4pfj5p0di.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.aferconn.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:103223415683:android:49b8d5ce339217dcc29cb6",
+        "android_client_info": {
+          "package_name": "com.example.afercon_pay"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "103223415683-n58617fht5s636utbfpdajpd2lgiadsr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJH65ODUdDLwEKC1yCnMS-h5KMCxgPDaE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "103223415683-n58617fht5s636utbfpdajpd2lgiadsr.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "103223415683-47ej9aa0fkshgf4kplo69bp4pfj5p0di.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.aferconn.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:103223415683:android:c63f7fb8dc4dac14c29cb6",
+        "android_client_info": {
+          "package_name": "com.example.myapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "103223415683-me9qr9lp2uvsp2nh1n5qdp4s8p13nr4k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.myapp",
+            "certificate_hash": "32ec65bdec3e373bf94675c09d24b72408c41594"
+          }
+        },
+        {
+          "client_id": "103223415683-n58617fht5s636utbfpdajpd2lgiadsr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJH65ODUdDLwEKC1yCnMS-h5KMCxgPDaE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "103223415683-n58617fht5s636utbfpdajpd2lgiadsr.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "103223415683-47ej9aa0fkshgf4kplo69bp4pfj5p0di.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.aferconn.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
