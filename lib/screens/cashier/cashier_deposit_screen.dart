@@ -1,6 +1,7 @@
 import 'package:afercon_pay/models/user_model.dart';
+import 'package:afercon_pay/screens/cashier/scan_qr_and_process_screen.dart';
+import 'package:afercon_pay/services/cashier_service.dart'; // NOVO: Serviço correto
 import 'package:afercon_pay/services/firestore_service.dart';
-import 'package:afercon_pay/services/functions_service.dart';
 import 'package:afercon_pay/services/pin_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,7 +19,7 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
   final _formKey = GlobalKey<FormState>();
   // Serviços
   final _firestoreService = FirestoreService();
-  final _functionsService = FunctionsService();
+  final _cashierService = CashierService(); // NOVO: Instância do serviço correto
   final _pinService = PinService();
 
   // Controladores
@@ -97,17 +98,21 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
 
     setState(() => _isProcessing = true);
 
-    final result = await _functionsService.processQrTransaction(
-      context: context,
-      data: {
+    try {
+        // USA O NOVO SERVIÇO
+      await _cashierService.processQrTransaction({
         'clientUid': _foundClient!.uid,
         'amount': amount,
-        'transactionType': 'deposit',
-      },
-    );
+        'type': 'deposit', // MUDANÇA: O nome do campo é 'type'
+      });
 
-    if (mounted) {
-      if (result != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Depósito realizado com sucesso!'),
+            backgroundColor: Colors.green[600],
+          ),
+        );
         _formKey.currentState?.reset();
         _phoneController.clear();
         _amountController.clear();
@@ -116,8 +121,26 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
           _searchError = null;
         });
       }
-      setState(() => _isProcessing = false);
+    } catch (e) {
+        if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                content: Text(e.toString().replaceFirst('Exception: ', '')),
+                backgroundColor: Theme.of(context).colorScheme.error,
+                ),
+            );
+        }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
     }
+  }
+
+  void _navigateToScanQr() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (context) => const ScanQrAndProcessScreen(),
+    ));
   }
 
   @override
@@ -153,7 +176,27 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('1. Encontrar o Cliente', style: theme.textTheme.titleLarge),
-        SizedBox(height: 8.h),
+        SizedBox(height: 16.h),
+        ElevatedButton.icon(
+          onPressed: _navigateToScanQr,
+          icon: const Icon(Icons.qr_code_scanner),
+          label: const Text('Escanear QR Code do Cliente'),
+          style: ElevatedButton.styleFrom(
+            padding: EdgeInsets.symmetric(vertical: 16.h),
+          ),
+        ),
+        SizedBox(height: 24.h),
+        Row(
+          children: [
+            const Expanded(child: Divider()),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8.w),
+              child: Text('OU', style: theme.textTheme.labelMedium),
+            ),
+            const Expanded(child: Divider()),
+          ],
+        ),
+        SizedBox(height: 24.h),
         TextFormField(
           controller: _phoneController,
           decoration: const InputDecoration(labelText: 'Nº de Telemóvel do Cliente', prefixIcon: Icon(Icons.phone)),
@@ -164,7 +207,7 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
         ElevatedButton.icon(
           onPressed: _isSearching ? null : _findClientByPhone,
           icon: _isSearching ? const SizedBox.shrink() : const Icon(Icons.search),
-          label: _isSearching ? const CircularProgressIndicator() : const Text('Procurar Cliente'),
+          label: _isSearching ? const CircularProgressIndicator() : const Text('Procurar Cliente por Telemóvel'),
         ),
       ],
     );

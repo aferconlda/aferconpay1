@@ -124,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
         BalanceCard(
-          balance: user?.balance ?? 0,
+          balance: user?.aoaBalance ?? 0.0, // CORRIGIDO
           format: currencyFormat,
           isLoading: isLoading,
         ),

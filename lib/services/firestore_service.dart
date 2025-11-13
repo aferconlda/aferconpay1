@@ -4,6 +4,7 @@ import 'package:afercon_pay/models/transaction_model.dart';
 import 'package:afercon_pay/models/user_model.dart';
 import 'package:afercon_pay/models/notification_model.dart';
 import 'package:afercon_pay/models/credit_application_model.dart';
+import 'package:afercon_pay/models/rating_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:afercon_pay/models/deposit_request_model.dart';
 import 'package:afercon_pay/models/withdrawal_request_model.dart';
@@ -18,6 +19,56 @@ class FirestoreService {
     return _instance;
   }
   FirestoreService._internal();
+
+  // Adicionado para suportar a atualização do ecrã de verificação
+  Future<void> updateUserFields(String userId, Map<String, dynamic> data) {
+    return _db.collection('users').doc(userId).update(data);
+  }
+
+  // ===================================================================
+  // == RATING METHODS
+  // ===================================================================
+
+  Future<void> submitRating({
+    required String transactionId,
+    required String raterId,
+    required String ratedId,
+    required double rating,
+    String? comment,
+  }) async {
+    final ratedUserRef = _db.collection('users').doc(ratedId);
+    final ratingRef = _db.collection('p2p_ratings').doc();
+
+    return _db.runTransaction((transaction) async {
+      final ratedUserSnapshot = await transaction.get(ratedUserRef);
+
+      if (!ratedUserSnapshot.exists) {
+        throw Exception("Utilizador a ser avaliado não encontrado.");
+      }
+
+      final ratedUser = UserModel.fromMap(ratedUserSnapshot.data()!);
+
+      final oldTotalRatingPoints = ratedUser.averageRating * ratedUser.totalRatings;
+      final newTotalRatings = ratedUser.totalRatings + 1;
+      final newAverageRating = (oldTotalRatingPoints + rating) / newTotalRatings;
+
+      transaction.update(ratedUserRef, {
+        'averageRating': newAverageRating,
+        'totalRatings': newTotalRatings,
+      });
+
+      final newRating = RatingModel(
+        id: ratingRef.id,
+        transactionId: transactionId,
+        raterId: raterId,
+        ratedId: ratedId,
+        rating: rating,
+        comment: comment,
+        createdAt: Timestamp.now(),
+      );
+      transaction.set(ratingRef, newRating.toMap());
+    });
+  }
 
   // ===================================================================
   // == USER METHODS
@@ -49,15 +100,19 @@ class FirestoreService {
     });
   }
 
-  Future<UserModel> getUser(String userId) async {
+  Future<UserModel?> getUser(String userId) async {
     final snapshot = await _db.collection('users').doc(userId).get();
-     if (snapshot.exists) {
-        return UserModel.fromMap(snapshot.data()!);
-      } else {
-        throw Exception("User document not found!");
-      }
+    if (snapshot.exists && snapshot.data() != null) {
+      return UserModel.fromMap(snapshot.data()!);
+    } else {
+      return null;
+    }
   }
   
+  Future<void> updateUserData(String userId, Map<String, dynamic> data) {
+    return _db.collection('users').doc(userId).update(data);
+  }
+
   Stream<List<UserModel>> getAllUsersStream() {
     return _db.collection('users').snapshots().map((snapshot) =>
         snapshot.docs.map((doc) => UserModel.fromMap(doc.data())).toList());
@@ -96,16 +151,14 @@ class FirestoreService {
     }
     return null;
   }
-  
-    Future<UserModel?> findUserByContact(String contact) async {
-    // Primeiro, tenta encontrar por número de telemóvel
+
+  Future<UserModel?> findUserByContact(String contact) async {
     var querySnapshot = await _db
         .collection('users')
         .where('phoneNumber', isEqualTo: contact)
         .limit(1)
         .get();
 
-    // Se não encontrar, tenta por email
     if (querySnapshot.docs.isEmpty) {
       querySnapshot = await _db
           .collection('users')
@@ -120,8 +173,7 @@ class FirestoreService {
     return null;
   }
 
-
-  // ===================================================================
+    // ===================================================================
   // == TRANSACTION METHODS
   // ===================================================================
 
@@ -166,7 +218,6 @@ class FirestoreService {
   }
   
   Future<void> createTransferRequest(String senderId, String recipientId, double amount) async {
-    // Implementação pendente
   }
 
   // ===================================================================
@@ -187,7 +238,7 @@ class FirestoreService {
   
   Future<void> addNotification(String userId, String title, String body) async {
     final notification = NotificationModel(
-      id: '', // O ID será gerado pelo Firestore
+      id: '', 
       title: title,
       body: body,
       date: Timestamp.now(),
@@ -269,19 +320,15 @@ class FirestoreService {
   }
 
   Future<void> approveDepositRequest(String requestId) async {
-    // Implementação pendente
   }
 
   Future<void> approveWithdrawalRequest(String requestId) async {
-    // Implementação pendente
   }
 
   Future<void> rejectDepositRequest(String requestId, String reason) async {
-    // Implementação pendente
   }
 
   Future<void> rejectWithdrawalRequest(String requestId, String reason) async {
-    // Implementação pendente
   }
   
   Future<void> createWithdrawalRequest({
@@ -293,10 +340,15 @@ class FirestoreService {
     required double totalDebited,
   }) async {
     final user = await getUser(userId);
+
+    if (user == null) {
+      throw Exception("User not found when creating withdrawal request.");
+    }
+
     final transactionId = _db.collection('users').doc(userId).collection('transactions').doc().id;
 
     final request = WithdrawalRequestModel(
-      id: '', // Gerado pelo Firestore
+      id: '', 
       transactionId: transactionId,
       userId: userId,
       beneficiaryName: beneficiaryName,

@@ -1,4 +1,4 @@
-import 'package:afercon_pay/screens/qr_code/pay_with_qr_screen.dart';
+
 import 'package:afercon_pay/screens/qr_code/receive_qr_screen.dart';
 import 'package:afercon_pay/screens/qr_code/scan_qr_screen.dart';
 import 'package:afercon_pay/screens/referral/referral_screen.dart';
@@ -10,21 +10,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class ActionButtonsGrid extends StatelessWidget {
   const ActionButtonsGrid({super.key});
-
-  // Refactored to handle the result from ScanQrScreen
-  void _onScanQrPressed(BuildContext context) async {
-    final String? qrCodeData = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const ScanQrScreen()),
-    );
-
-    if (qrCodeData != null && context.mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PayWithQRScreen(qrCodeData: qrCodeData),
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +39,9 @@ class ActionButtonsGrid extends StatelessWidget {
         _buildActionButton(context,
             icon: Icons.qr_code_scanner,
             label: 'Pagar com QR',
-            onTap: () => _onScanQrPressed(context)), // Updated onTap
+            // CORRECTED: Simplified navigation directly to the scanner screen
+            onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ScanQrScreen()))),
         _buildActionButton(context,
             icon: Icons.qr_code_2,
             label: 'Receber QR',

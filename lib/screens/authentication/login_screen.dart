@@ -1,11 +1,9 @@
-
 import 'package:afercon_pay/screens/authentication/forgot_password_screen.dart';
 import 'package:afercon_pay/screens/authentication/registration_screen.dart';
 import 'package:afercon_pay/services/auth_service.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -30,6 +28,9 @@ class _LoginScreenState extends State<LoginScreen> {
   LoginType _loginType = LoginType.email;
   bool _isAwaitingSms = false;
   String? _verificationId;
+
+  // State for password visibility
+  bool _isPasswordVisible = false;
 
   @override
   void dispose() {
@@ -57,20 +58,37 @@ class _LoginScreenState extends State<LoginScreen> {
         await _signInWithSmsCode();
       }
     } finally {
-        if (mounted && _loginType == LoginType.email) {
-            setState(() {
-                _isLoading = false;
-            });
-        }
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _loginWithEmail() async {
     try {
-      await _authService.signInWithEmailAndPassword(
+      final userCredential = await _authService.signInWithEmailAndPassword(
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
+      
+      final user = userCredential.user;
+      if (user != null) {
+        if (!user.emailVerified) {
+          // If email is not verified, send a new verification email and show a message
+          await user.sendEmailVerification();
+          await _authService.signOut(); // Sign out the user
+
+          if (mounted) {
+            setState(() {
+              _errorMessage = 'A sua conta não foi verificada. Enviámos um novo link de verificação para o seu email. Por favor, verifique a sua caixa de entrada (e a pasta de spam).';
+            });
+          }
+        } 
+        // If email is verified, the AuthGate will handle navigation
+      }
+
     } on FirebaseAuthException catch (e) {
       String message;
       switch (e.code) {
@@ -88,13 +106,13 @@ class _LoginScreenState extends State<LoginScreen> {
         default:
           message = 'Ocorreu um erro. Por favor, tente mais tarde.';
       }
-       if (mounted) {
+      if (mounted) {
         setState(() {
           _errorMessage = message;
         });
       }
     } catch (e) {
-       if (mounted) {
+      if (mounted) {
         setState(() {
           _errorMessage = 'Ocorreu um erro inesperado. Tente novamente.';
         });
@@ -102,13 +120,16 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // CORRIGIDO: Agora usa o número de telemóvel do campo de texto
   Future<void> _requestSmsCode() async {
     final phoneNumber = '+244${_phoneController.text.trim()}';
     await _authService.verifyPhoneNumber(
       phoneNumber: phoneNumber,
       verificationCompleted: (PhoneAuthCredential credential) async {
         if (mounted) {
-          setState(() { _isLoading = true; });
+          setState(() {
+            _isLoading = true;
+          });
           await _signInWithPhone(credential);
         }
       },
@@ -140,8 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
           });
         }
       },
-      codeAutoRetrievalTimeout: (String verificationId) {
-      },
+      codeAutoRetrievalTimeout: (String verificationId) {},
     );
   }
 
@@ -165,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         message = 'Falha no login. Por favor, tente novamente.';
       }
-       if (mounted) {
+      if (mounted) {
         setState(() {
           _errorMessage = message;
           _isLoading = false;
@@ -186,15 +206,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: theme.colorScheme.surface,
       appBar: const CustomAppBar(title: Text('Faça Login')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(24.w),
+            padding: const EdgeInsets.all(24),
             child: Card(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 32.h),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -203,38 +223,45 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       Image.asset(
                         'assets/logo.png',
-                        height: 100.h,
+                        height: 100,
                         fit: BoxFit.contain,
                       ),
-                      SizedBox(height: 24.h),
+                      const SizedBox(height: 24),
                       Text(
                         'Bem-vindo de volta!',
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                        style: theme.textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
-                      SizedBox(height: 8.h),
+                      const SizedBox(height: 8),
                       Text(
                         'Insira as suas credenciais para continuar.',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodyMedium,
                       ),
-                      SizedBox(height: 32.h),
+                      const SizedBox(height: 32),
                       _buildLoginSelector(),
-                      SizedBox(height: 24.h),
+                      const SizedBox(height: 24),
                       if (_loginType == LoginType.email) ..._buildEmailFields(),
                       if (_loginType == LoginType.phone) ..._buildPhoneFields(),
-                      SizedBox(height: 16.h),
+                      const SizedBox(height: 16),
                       if (_errorMessage != null)
                         Padding(
-                          padding: EdgeInsets.only(bottom: 8.h),
+                          padding: const EdgeInsets.only(bottom: 8),
                           child: Text(_errorMessage!, style: TextStyle(color: theme.colorScheme.error), textAlign: TextAlign.center),
                         ),
-                      SizedBox(height: 16.h),
+                      const SizedBox(height: 16),
                       _isLoading
                           ? const Center(child: CircularProgressIndicator())
                           : _buildLoginButton(),
-                      SizedBox(height: 24.h),
+                      const SizedBox(height: 24),
                       _buildRegistrationLink(),
+                      const SizedBox(height: 32),
+                      _buildSecurityNotice(theme),
+                      const SizedBox(height: 24),
+                      const Divider(),
+                      const SizedBox(height: 24),
+                      _buildSupportInfo(theme),
                     ],
                   ),
                 ),
@@ -243,6 +270,65 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSecurityNotice(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.security, size: 20, color: theme.colorScheme.onSurface.withAlpha((255 * 0.6).round())),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Nunca partilhe a sua senha. A equipa Afercon Pay nunca solicita esta informação.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSupportInfo(ThemeData theme) {
+    final bodySmall = theme.textTheme.bodySmall?.copyWith(fontSize: 13);
+    return Column(
+      children: [
+        Text(
+          'Apoio ao Cliente',
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.phone_outlined, size: 16),
+            const SizedBox(width: 8),
+            Text('+244 945 100 502', style: bodySmall),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.message_outlined, size: 16), // Ícone para WhatsApp
+            const SizedBox(width: 8),
+            Text('+244 945 100 502 (WhatsApp)', style: bodySmall),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.email_outlined, size: 16),
+            const SizedBox(width: 8),
+            Text('apoioaocliente@aferconpay.net', style: bodySmall),
+          ],
+        ),
+      ],
     );
   }
 
@@ -258,8 +344,8 @@ class _LoginScreenState extends State<LoginScreen> {
             _formKey.currentState?.reset();
           });
         },
-        borderRadius: BorderRadius.circular(8.r),
-        constraints: BoxConstraints(minHeight: 40.h, minWidth: 100.w),
+        borderRadius: BorderRadius.circular(8),
+        constraints: const BoxConstraints(minHeight: 40, minWidth: 100),
         children: const [
           Padding(padding: EdgeInsets.symmetric(horizontal: 16.0), child: Text('Email')),
           Padding(padding: EdgeInsets.symmetric(horizontal: 16.0), child: Text('Telemóvel')),
@@ -276,11 +362,24 @@ class _LoginScreenState extends State<LoginScreen> {
         keyboardType: TextInputType.emailAddress,
         validator: (value) => (value?.isEmpty ?? true) || !value!.contains('@') ? 'Insira um email válido' : null,
       ),
-      SizedBox(height: 16.h),
+      const SizedBox(height: 16),
       TextFormField(
         controller: _passwordController,
-        decoration: const InputDecoration(labelText: 'Senha', prefixIcon: Icon(Icons.lock_outline)),
-        obscureText: true,
+        obscureText: !_isPasswordVisible,
+        decoration: InputDecoration(
+          labelText: 'Senha',
+          prefixIcon: const Icon(Icons.lock_outline),
+          suffixIcon: IconButton(
+            icon: Icon(
+              _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+            ),
+            onPressed: () {
+              setState(() {
+                _isPasswordVisible = !_isPasswordVisible;
+              });
+            },
+          ),
+        ),
         validator: (value) => (value?.isEmpty ?? true) ? 'Insira a sua senha' : null,
       ),
       Align(
@@ -327,7 +426,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildLoginButton() {
     return ElevatedButton(
-      style: ElevatedButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 16.h)),
+      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
       onPressed: _isLoading ? null : _processLogin,
       child: Text(
         _loginType == LoginType.email

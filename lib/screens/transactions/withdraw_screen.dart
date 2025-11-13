@@ -229,7 +229,7 @@ class _BankWithdrawalTabState extends State<BankWithdrawalTab>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildHeader(context, widget.currentUser.balance,
+                _buildHeader(context, widget.currentUser.balance['AOA'] ?? 0.0,
                     widget.currentUser.kycStatus, remainingKycLimit,
                     isBank: true),
                 SizedBox(height: 24.h),
@@ -284,7 +284,7 @@ class _BankWithdrawalTabState extends State<BankWithdrawalTab>
                     if (amount <= 0) {
                       return 'O montante deve ser positivo.';
                     }
-                    if (_totalDebited > widget.currentUser.balance) {
+                    if (_totalDebited > (widget.currentUser.balance['AOA'] ?? 0.0)) {
                       return 'Saldo insuficiente. Necessita de ${NumberFormat.currency(locale: 'pt_AO', symbol: 'Kz').format(_totalDebited)}.';
                     }
                     return null;
@@ -402,7 +402,7 @@ class _QrWithdrawalTabState extends State<QrWithdrawalTab>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildHeader(context, widget.currentUser.balance,
+                _buildHeader(context, widget.currentUser.balance['AOA'] ?? 0.0,
                     widget.currentUser.kycStatus, remainingKycLimit,
                     isBank: false),
                 SizedBox(height: 24.h),
@@ -429,7 +429,7 @@ class _QrWithdrawalTabState extends State<QrWithdrawalTab>
                     if (amount <= 0) {
                       return 'O montante deve ser positivo.';
                     }
-                    if (_totalDebited > widget.currentUser.balance) {
+                    if (_totalDebited > (widget.currentUser.balance['AOA'] ?? 0.0)) {
                       return 'Saldo insuficiente. Necessita de ${NumberFormat.currency(locale: 'pt_AO', symbol: 'Kz').format(_totalDebited)}.';
                     }
                     return null;

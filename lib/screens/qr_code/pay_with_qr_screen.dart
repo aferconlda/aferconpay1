@@ -1,86 +1,79 @@
-import 'dart:convert';
+
 import 'package:afercon_pay/models/user_model.dart';
+import 'package:afercon_pay/services/transaction_service.dart'; // Use o serviço centralizado
 import 'package:afercon_pay/services/auth_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/widgets/pin_confirmation_dialog.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
-class PayWithQRScreen extends StatefulWidget {
-  final String qrCodeData;
+class PayWithQrScreen extends StatefulWidget {
+  final String recipientId;
+  final double? amount; // NOVO: Recebe o montante do QR Code
 
-  const PayWithQRScreen({super.key, required this.qrCodeData});
+  const PayWithQrScreen({super.key, required this.recipientId, this.amount});
 
   @override
-  State<PayWithQRScreen> createState() => _PayWithQRScreenState();
+  State<PayWithQrScreen> createState() => _PayWithQrScreenState();
 }
 
-class _PayWithQRScreenState extends State<PayWithQRScreen> {
+class _PayWithQrScreenState extends State<PayWithQrScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   final AuthService _authService = AuthService();
+  final TransactionService _transactionService = TransactionService();
+
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  final _descriptionController = TextEditingController(text: 'Pagamento via QR Code');
 
   bool _isLoading = true;
   bool _isProcessingPayment = false;
   UserModel? _recipient;
+  UserModel? _currentUser; // NOVO: Para guardar os dados do utilizador atual
   String? _errorMessage;
-  bool _isAmountFromQr = false;
 
   @override
   void initState() {
     super.initState();
-    _loadRecipientData();
+    if (widget.amount != null) {
+      _amountController.text = widget.amount!.toStringAsFixed(2);
+    }
+    _loadInitialData(); // CORREÇÃO: Nome da função mais claro
   }
 
-  Future<void> _loadRecipientData() async {
+  Future<void> _loadInitialData() async {
     try {
-      String? parsedRecipientId;
-      double? qrAmount;
-      String? qrDescription;
-
-      try {
-        final qrData = jsonDecode(widget.qrCodeData);
-        if (qrData is Map && qrData.containsKey('uid')) {
-          parsedRecipientId = qrData['uid'];
-          qrAmount = (qrData['amount'] as num?)?.toDouble();
-          qrDescription = qrData['description'] as String?;
-        }
-      } on FormatException {
-        parsedRecipientId = widget.qrCodeData;
+      final authUser = _authService.getCurrentUser();
+      if (authUser == null) {
+        throw Exception('Utilizador não autenticado.');
       }
 
-      if (parsedRecipientId == null || parsedRecipientId.trim().isEmpty) {
-        throw Exception('Formato do QR Code inválido.');
+      // Carrega ambos os utilizadores em paralelo
+      final [recipient, currentUser] = await Future.wait([
+        _firestoreService.getUser(widget.recipientId),
+        _firestoreService.getUser(authUser.uid),
+      ]);
+
+      if (recipient == null) {
+        throw Exception('O destinatário do pagamento não foi encontrado.');
       }
-
-      final recipient = await _firestoreService.getUser(parsedRecipientId);
-
-      final currentUser = _authService.getCurrentUser();
-      if (recipient.uid == currentUser?.uid) {
+      if (currentUser == null) {
+        throw Exception('Não foi possível carregar os seus dados.');
+      }
+      if (recipient.uid == currentUser.uid) {
         throw Exception('Não pode fazer um pagamento a si mesmo.');
-      }
-
-      if (qrAmount != null) {
-        _amountController.text = NumberFormat("#,##0.00", "pt_AO").format(qrAmount);
-        _isAmountFromQr = true;
-      }
-      if (qrDescription != null) {
-        _descriptionController.text = qrDescription;
       }
 
       if (mounted) {
         setState(() {
           _recipient = recipient;
+          _currentUser = currentUser; // NOVO: Guarda o utilizador atual
           _isLoading = false;
         });
       }
-
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Erro ao processar QR Code: ${e.toString().replaceAll("Exception: ", "")}';
+          _errorMessage = 'Erro ao carregar dados: ${e.toString().replaceAll("Exception: ", "")}';
           _isLoading = false;
         });
       }
@@ -97,37 +90,39 @@ class _PayWithQRScreenState extends State<PayWithQRScreen> {
 
     setState(() { _isProcessingPayment = true; });
 
-    final currentUser = _authService.getCurrentUser();
-    if (currentUser == null) {
-       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro: Utilizador não autenticado.')));
-      }
-      setState(() { _isProcessingPayment = false; });
-      return;
-    }
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     try {
       final amount = double.parse(_amountController.text.replaceAll('.', '').replaceAll(',', '.'));
 
-      await _firestoreService.createTransferRequest(
-        currentUser.uid,
-        _recipient!.uid,
-        amount,
+      await _transactionService.p2pTransfer(
+        recipientId: _recipient!.uid,
+        amount: amount,
+        description: _descriptionController.text,
       );
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('O seu pedido de pagamento foi enviado e está a ser processado.'),
+      scaffoldMessenger.showSnackBar(const SnackBar(
+        content: Text('Pagamento efetuado com sucesso!'),
         backgroundColor: Colors.green,
       ));
 
-      Navigator.of(context).pop();
+      Navigator.of(context).popUntil((route) => route.isFirst);
 
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Erro no pagamento: ${e.toString().replaceAll("Exception: ", "")}'),
+      String errorMessage = 'Não foi possível concluir o pagamento. Tente novamente.';
+        if (e is Exception) {
+            final message = e.toString().toLowerCase();
+            if (message.contains('insufficient funds')) {
+                errorMessage = 'O seu saldo é insuficiente para este pagamento.';
+            } else if (message.contains('user not found')) {
+                errorMessage = 'O destinatário não foi encontrado.';
+            }
+        }
+      scaffoldMessenger.showSnackBar(SnackBar(
+        content: Text(errorMessage),
         backgroundColor: Theme.of(context).colorScheme.error,
       ));
     } finally {
@@ -148,6 +143,7 @@ class _PayWithQRScreenState extends State<PayWithQRScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final recipientName = _recipient?.displayName ?? 'Desconhecido';
+    final isAmountFromQr = widget.amount != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -199,7 +195,7 @@ class _PayWithQRScreenState extends State<PayWithQRScreen> {
                                     radius: 35,
                                     backgroundColor: theme.colorScheme.primary,
                                     child: Text(
-                                      recipientName.substring(0, 1).toUpperCase(),
+                                      recipientName.isNotEmpty ? recipientName.substring(0, 1).toUpperCase() : 'U',
                                       style: theme.textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
                                     ),
                                   ),
@@ -218,14 +214,14 @@ class _PayWithQRScreenState extends State<PayWithQRScreen> {
                                 children: [
                                   TextFormField(
                                     controller: _amountController,
-                                    readOnly: _isAmountFromQr,
+                                    readOnly: isAmountFromQr, // NOVO: Bloqueia o campo se o valor vier do QR
                                     style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.secondary),
                                     textAlign: TextAlign.center,
                                     decoration: InputDecoration(
                                       labelText: 'Valor a Pagar',
                                       labelStyle: TextStyle(color: theme.colorScheme.primary),
                                       suffixText: 'Kz',
-                                      border: _isAmountFromQr ? InputBorder.none : const OutlineInputBorder(),
+                                      border: const OutlineInputBorder(),
                                       filled: false,
                                     ),
                                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -233,19 +229,24 @@ class _PayWithQRScreenState extends State<PayWithQRScreen> {
                                       if (value == null || value.isEmpty) return 'Insira um valor.';
                                       final amount = double.tryParse(value.replaceAll('.', '').replaceAll(',', '.'));
                                       if (amount == null || amount <= 0) return 'Insira um valor válido.';
+                                      
+                                      // CORREÇÃO: Validação de saldo implementada
+                                      final balance = _currentUser?.balance['AOA'] ?? 0.0;
+                                      if (amount > balance) {
+                                        return 'Saldo insuficiente. Saldo atual: $balance Kz';
+                                      }
+
                                       return null;
                                     },
                                   ),
                                   const SizedBox(height: 24),
-                                  if (_descriptionController.text.isNotEmpty || !_isAmountFromQr)
-                                    TextFormField(
+                                  TextFormField(
                                       controller: _descriptionController,
-                                      readOnly: _isAmountFromQr,
                                       textAlign: TextAlign.center,
                                       decoration: InputDecoration(
                                         labelText: 'Descrição',
                                         labelStyle: TextStyle(color: theme.colorScheme.primary),
-                                        border: _isAmountFromQr ? InputBorder.none : const OutlineInputBorder(),
+                                        border: const OutlineInputBorder(),
                                         filled: false,
                                       ),
                                     ),

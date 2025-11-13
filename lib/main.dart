@@ -1,7 +1,7 @@
+
 import 'package:afercon_pay/firebase_options.dart';
 import 'package:afercon_pay/providers/notification_provider.dart';
 import 'package:afercon_pay/screens/auth/auth_gate.dart';
-import 'package:afercon_pay/screens/authentication/login_screen.dart';
 import 'package:afercon_pay/services/auth_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/services/notification_service.dart';
@@ -21,17 +21,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const String kUnreadNotificationFlag = 'has_unread_notifications';
 
-// Handler para notificações em background/terminado
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  // Usaremos o NotificationService para mostrar a notificação
-  final notificationService = NotificationService();
-  notificationService.showNotification(message);
-  
-  // Opcional: manter a flag para lógica interna
+  await NotificationService().showNotification(message);
+
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool(kUnreadNotificationFlag, true);
 }
@@ -45,17 +41,20 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  if (!kIsWeb) {
+    await NotificationService().init();
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  if (!kIsWeb && !kDebugMode) {
-    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-    PlatformDispatcher.instance.onError = (error, stack) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-      return true;
-    };
+    await ReferralService().init();
+
+    if (!kDebugMode) {
+      FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+      PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        return true;
+      };
+    }
   }
-
-  await ReferralService().init();
 
   runApp(const AferconPayApp());
 }
@@ -78,31 +77,24 @@ class _AferconPayAppState extends State<AferconPayApp> with WidgetsBindingObserv
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-
-    _notificationService.setNotificationProvider(_notificationProvider);
-    _notificationService.initialize();
-
-    // Listener para notificações com a app em primeiro plano
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      _notificationService.showNotification(message);
-      _notificationProvider.setUnreadStatus(true); // CORRIGIDO
-    });
     
-    _notificationService.clearAppBadge();
+    if (!kIsWeb) {
+      WidgetsBinding.instance.addObserver(this);
+    }
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    if (!kIsWeb) {
+      WidgetsBinding.instance.removeObserver(this);
+    }
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _notificationService.clearAppBadge();
-      _notificationProvider.checkInitialStatus();
+    if (!kIsWeb) {
+      // Optional: Add lifecycle logic if needed
     }
   }
 
@@ -133,11 +125,7 @@ class _AferconPayAppState extends State<AferconPayApp> with WidgetsBindingObserv
                 navigatorObservers: kIsWeb
                     ? []
                     : <NavigatorObserver>[AferconPayApp.observer],
-                initialRoute: '/',
-                routes: {
-                  '/': (context) => const AuthGate(),
-                  '/login': (context) => const LoginScreen(),
-                },
+                home: const AuthGate(),
                 debugShowCheckedModeBanner: false,
               );
             },

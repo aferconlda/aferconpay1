@@ -1,6 +1,7 @@
+
 import 'package:afercon_pay/models/user_model.dart';
+import 'package:afercon_pay/services/cashier_service.dart'; // NOVO: Serviço correto
 import 'package:afercon_pay/services/firestore_service.dart';
-import 'package:afercon_pay/services/functions_service.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -19,7 +20,7 @@ class _CashierAddFloatScreenState extends State<CashierAddFloatScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _firestoreService = FirestoreService();
-  final _functionsService = FunctionsService();
+  final _cashierService = CashierService(); // NOVO: Instância do serviço correto
   final _userId = FirebaseAuth.instance.currentUser!.uid;
   bool _isLoading = false;
 
@@ -33,17 +34,34 @@ class _CashierAddFloatScreenState extends State<CashierAddFloatScreen> {
 
     setState(() => _isLoading = true);
 
-    final result = await _functionsService.addFloatFromBalance(
-      context: context,
-      amount: amount,
-    );
+    try {
+      // USA O NOVO SERVIÇO
+      await _cashierService.addFloatFromBalance(amount);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Saldo float carregado com sucesso!'),
+            backgroundColor: Colors.green[600],
+          ),
+        );
+        Navigator.of(context).pop();
+      }
 
-    if (result != null && mounted) {
-      Navigator.of(context).pop();
-    }
-
-    if (mounted) {
-      setState(() => _isLoading = false);
+    } catch (e) {
+      // Tratamento de erro melhorado
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -66,7 +84,7 @@ class _CashierAddFloatScreenState extends State<CashierAddFloatScreen> {
           }
 
           final user = snapshot.data!;
-          final personalBalance = user.balance;
+          final personalBalance = user.aoaBalance;
           final floatBalance = user.floatBalance;
 
           return Padding(

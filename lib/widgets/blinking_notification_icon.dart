@@ -1,39 +1,18 @@
 
 import 'package:afercon_pay/providers/notification_provider.dart';
 import 'package:afercon_pay/screens/notifications/notifications_screen.dart';
+import 'package:afercon_pay/widgets/blinking_dot.dart'; // Importa o widget do ponto a piscar
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-class BlinkingNotificationIcon extends StatefulWidget {
+class BlinkingNotificationIcon extends StatelessWidget {
   const BlinkingNotificationIcon({super.key});
 
-  @override
-  State<BlinkingNotificationIcon> createState() => _BlinkingNotificationIconState();
-}
-
-class _BlinkingNotificationIconState extends State<BlinkingNotificationIcon> with SingleTickerProviderStateMixin {
-  late final AnimationController _animationController;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
   void _onIconPressed(BuildContext context) {
-    // Mark notifications as read
+    // Ao clicar, marca as notificações como lidas
     context.read<NotificationProvider>().markAsRead();
 
-    // Navigate to the notifications screen
+    // E navega para o ecrã de notificações
     Navigator.of(context).push(MaterialPageRoute(
       builder: (context) => const NotificationsScreen(),
     ));
@@ -41,27 +20,24 @@ class _BlinkingNotificationIconState extends State<BlinkingNotificationIcon> wit
 
   @override
   Widget build(BuildContext context) {
+    // O Consumer garante que o widget se reconstrói quando o estado das notificações muda
     return Consumer<NotificationProvider>(
       builder: (context, provider, child) {
         return IconButton(
           icon: Stack(
             clipBehavior: Clip.none,
             children: [
+              // O ícone do sino
               const Icon(Icons.notifications_outlined),
+
+              // Se houver notificações não lidas, mostra o ponto a piscar
               if (provider.hasUnreadNotifications)
                 Positioned(
-                  top: -4,
-                  right: -4,
-                  child: FadeTransition(
-                    opacity: _animationController,
-                    child: Container(
-                      height: 12,
-                      width: 12,
-                      decoration: const BoxDecoration(
-                        color: Colors.greenAccent,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
+                  top: 0, // Ajuste para a sua preferência visual
+                  right: 0, // Ajuste para a sua preferência visual
+                  child: BlinkingDot(
+                    color: Colors.red, // REPARADO: A cor agora é vermelha
+                    size: 10.0,          // REPARADO: Usa o widget BlinkingDot
                   ),
                 ),
             ],

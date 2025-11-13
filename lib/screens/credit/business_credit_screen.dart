@@ -1,164 +1,189 @@
+import 'package:afercon_pay/models/credit_application_model.dart';
 import 'package:afercon_pay/models/user_model.dart';
-import 'package:afercon_pay/services/auth_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
-import 'package:afercon_pay/screens/credit/credit_application_screen.dart';
-import 'package:afercon_pay/services/credit_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 
 class BusinessCreditScreen extends StatefulWidget {
   const BusinessCreditScreen({super.key});
 
   @override
-  BusinessCreditScreenState createState() => BusinessCreditScreenState();
+  State<BusinessCreditScreen> createState() => _BusinessCreditScreenState();
 }
 
-class BusinessCreditScreenState extends State<BusinessCreditScreen> {
-  final CreditService _creditService = CreditService();
-  late final FirestoreService _firestoreService;
-  late final AuthService _authService;
-  String? _userId;
-
-  Stream<UserModel>? _userStream;
-  bool _isLoading = true;
-
-  double _loanAmount = 0;
-  double _loanMonths = 6;
-  Map<String, double> _loanDetails = {};
-
-  final double _maxLoanAmount = 15000000;
-  final double _minMonths = 6;
-  final double _maxMonths = 60;
-  final double _analysisFee = 1000.0;
-
-  final currencyFormat =
-      NumberFormat.currency(locale: 'pt_AO', symbol: 'Kz', decimalDigits: 2);
+class _BusinessCreditScreenState extends State<BusinessCreditScreen> {
+  final _firestoreService = FirestoreService();
+  final _userId = FirebaseAuth.instance.currentUser!.uid;
+  final _amountController = TextEditingController();
+  final _monthsController = TextEditingController();
+  final _reasonController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
 
   @override
-  void initState() {
-    super.initState();
-    _firestoreService = context.read<FirestoreService>();
-    _authService = context.read<AuthService>();
-    _loadUserData();
-    _calculateDetails();
+  void dispose() {
+    _amountController.dispose();
+    _monthsController.dispose();
+    _reasonController.dispose();
+    super.dispose();
   }
 
-  void _loadUserData() {
-    final currentUser = _authService.getCurrentUser();
-    if (mounted) {
-      if (currentUser != null) {
-        setState(() {
-          _userId = currentUser.uid;
-          _userStream = _firestoreService.getUserStream(_userId!);
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+  void _submitApplication({
+    required double amount,
+    required int months,
+    required String reason,
+    required String userId,
+  }) async {
+    if (!_formKey.currentState!.validate()) {
+      return;
     }
-  }
 
-  void _calculateDetails() {
-    setState(() {
-      _loanDetails = _creditService.calculateLoanDetails(
-        _loanAmount,
-        _loanMonths.toInt(),
-        'business',
-      );
-    });
-  }
+    setState(() => _isLoading = true);
 
-  void _navigateToApplicationForm() {
-    if (_loanAmount > 0) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => CreditApplicationScreen(
-            loanAmount: _loanAmount,
-            loanMonths: _loanMonths.toInt(),
-            creditType: 'business',
-          ),
-        ),
-      );
+    final application = CreditApplicationModel(
+      id: '', // Firestore will generate it
+      userId: userId,
+      amount: amount,
+      months: months,
+      reason: reason,
+      creditType: 'business',
+      status: 'pending',
+      createdAt: Timestamp.now(),
+    );
+
+    try {
+      await _firestoreService.createCreditApplication(application);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Pedido de crédito enviado com sucesso!')),
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao enviar o pedido: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        appBar: CustomAppBar(
-          title: Text('Simulador de Crédito Empresarial'),
-        ),
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_userId == null || _userStream == null) {
-      return const Scaffold(
-        appBar: CustomAppBar(
-          title: Text('Simulador de Crédito Empresarial'),
-        ),
-        body: Center(child: Text("Utilizador não autenticado.")),
-      );
-    }
+    final currencyFormat = NumberFormat.currency(locale: 'pt_AO', symbol: 'Kz');
 
     return Scaffold(
-      appBar: const CustomAppBar(
-        title: Text('Simulador de Crédito Empresarial'),
-      ),
+      appBar: const CustomAppBar(title: Text('Crédito Empresarial')),
       body: StreamBuilder<UserModel>(
-        stream: _userStream!,
+        stream: _firestoreService.getUserStream(_userId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData) {
-            return const Center(
-                child: Text("Não foi possível carregar os dados do utilizador."));
+            return const Center(child: Text('Utilizador não encontrado.'));
           }
 
           final user = snapshot.data!;
-          final currentBalance = user.balance;
+          final isEligible = user.kycStatus == KycStatus.approved &&
+              user.role == 'business_owner';
 
-          final bool hasSufficientBalance = currentBalance >= _analysisFee;
-          final bool isButtonEnabled = _loanAmount > 0 && hasSufficientBalance;
+          if (!isEligible) {
+            return _buildEligibilityError(user);
+          }
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildSimulatorCard(),
-                const SizedBox(height: 32),
-                _buildSummaryCard(),
-                const SizedBox(height: 24),
-                _buildFeeInformationCard(),
-                const SizedBox(height: 24),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ElevatedButton(
-                      onPressed: isButtonEnabled ? _navigateToApplicationForm : null,
-                      child: const Text('Avançar para o Pedido'),
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Solicite crédito para a sua empresa.',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _amountController,
+                    decoration: const InputDecoration(
+                      labelText: 'Montante Desejado',
+                      border: OutlineInputBorder(),
                     ),
-                    if (_loanAmount > 0 && !hasSufficientBalance)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12.0),
-                        child: Text(
-                          'Saldo insuficiente (${currencyFormat.format(currentBalance)}) para cobrir a taxa de análise de ${currencyFormat.format(_analysisFee)}.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                              fontSize: 14),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Por favor, insira um montante.';
+                      }
+                      final amount = double.tryParse(value);
+                      if (amount == null || amount <= 0) {
+                        return 'O montante deve ser um número positivo.';
+                      }
+                      if (user.aoaBalance >= 0 && amount > user.aoaBalance * 0.5) {
+                        return 'O montante não pode exceder 50% do seu saldo atual (${currencyFormat.format(user.aoaBalance * 0.5)}).';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _monthsController,
+                    decoration: const InputDecoration(
+                      labelText: 'Número de Meses para Reembolso',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Por favor, insira o número de meses.';
+                      }
+                      final months = int.tryParse(value);
+                      if (months == null || months <= 0) {
+                        return 'O número de meses deve ser um inteiro positivo.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _reasonController,
+                    decoration: const InputDecoration(
+                      labelText: 'Motivo do Pedido',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Por favor, descreva o motivo do pedido.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 30),
+                  ElevatedButton(
+                    onPressed: _isLoading
+                        ? null
+                        : () => _submitApplication(
+                              amount: double.parse(_amountController.text),
+                              months: int.parse(_monthsController.text),
+                              reason: _reasonController.text,
+                              userId: _userId,
+                            ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator()
+                        : const Text('Enviar Pedido'),
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -166,158 +191,32 @@ class BusinessCreditScreenState extends State<BusinessCreditScreen> {
     );
   }
 
-  Widget _buildFeeInformationCard() {
-    final theme = Theme.of(context);
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
+  Widget _buildEligibilityError(UserModel user) {
+    String message;
+    if (user.kycStatus != KycStatus.approved) {
+      message =
+          'A sua conta precisa de ter o KYC aprovado para solicitar crédito.';
+    } else if (user.role != 'business_owner') {
+      message =
+          'Apenas contas de proprietário de empresa (Business Owner) podem solicitar crédito empresarial.';
+    } else {
+      message = 'Não é elegível para crédito empresarial neste momento.';
+    }
+
+    return Center(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              'Taxa de Análise',
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              currencyFormat.format(_analysisFee),
-              style: theme.textTheme.headlineSmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Esta taxa não reembolsável cobre os custos administrativos e a avaliação do seu perfil de crédito empresarial.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.textTheme.bodyMedium?.color?.withAlpha(204)),
-            ),
+            const Icon(Icons.error_outline, color: Colors.red, size: 60),
+            const SizedBox(height: 16),
+            Text(message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16)),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildSimulatorCard() {
-    final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Valor do Empréstimo',
-                style: theme.textTheme.titleLarge?.copyWith(fontSize: 18)),
-            const SizedBox(height: 8),
-            Text(currencyFormat.format(_loanAmount),
-                style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary)),
-            Slider(
-              value: _loanAmount,
-              min: 0,
-              max: _maxLoanAmount,
-              divisions: 300,
-              label: currencyFormat.format(_loanAmount),
-              onChanged: (value) {
-                setState(() {
-                  _loanAmount = value;
-                });
-              },
-              onChangeEnd: (value) => _calculateDetails(),
-            ),
-            const SizedBox(height: 16),
-            Text('Prazo de Pagamento (Meses)',
-                style: theme.textTheme.titleLarge?.copyWith(fontSize: 18)),
-            const SizedBox(height: 8),
-            Text('${_loanMonths.toInt()} meses',
-                style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary)),
-            Slider(
-              value: _loanMonths,
-              min: _minMonths,
-              max: _maxMonths,
-              divisions: ((_maxMonths - _minMonths) / 6).toInt(),
-              label: '${_loanMonths.toInt()} meses',
-              onChanged: (value) {
-                setState(() {
-                  _loanMonths = value;
-                });
-              },
-              onChangeEnd: (value) => _calculateDetails(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard() {
-    final theme = Theme.of(context);
-    final monthlyPayment = _loanDetails['monthlyPayment'] ?? 0;
-    final totalInterest = _loanDetails['totalInterest'] ?? 0;
-    final totalRepayment = _loanDetails['totalRepayment'] ?? 0;
-    final interestRate = (_loanDetails['interestRate'] ?? 0) * 100;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Resumo da Simulação', style: theme.textTheme.titleLarge),
-            const SizedBox(height: 16),
-            _buildSummaryRow(
-                'Taxa de Juro Mensal', '${interestRate.toStringAsFixed(1)}%'),
-            const Divider(),
-            _buildSummaryRow(
-                'Juros a Pagar', currencyFormat.format(totalInterest)),
-            const Divider(),
-            _buildSummaryRow(
-                'Valor Total a Pagar', currencyFormat.format(totalRepayment),
-                isTotal: true),
-            const SizedBox(height: 16),
-            Center(
-              child: Column(
-                children: [
-                  Text('Prestação Mensal Estimada',
-                      style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 4),
-                  Text(
-                    currencyFormat.format(monthlyPayment),
-                    style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.primary),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSummaryRow(String title, String value, {bool isTotal = false}) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title, style: theme.textTheme.bodyMedium),
-        Text(value,
-            style: isTotal
-                ? theme.textTheme.titleLarge?.copyWith(fontSize: 18)
-                : theme.textTheme.bodyMedium?.copyWith(fontSize: 16)),
-      ],
     );
   }
 }

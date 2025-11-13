@@ -1,10 +1,11 @@
+
+import 'dart:convert';
+import 'package:afercon_pay/screens/qr_code/pay_with_qr_screen.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-/// This screen is responsible for scanning QR codes.
-/// It uses the mobile_scanner package to provide a camera view
-/// and detect QR codes from the stream.
+
 class ScanQrScreen extends StatefulWidget {
   const ScanQrScreen({super.key});
 
@@ -15,7 +16,7 @@ class ScanQrScreen extends StatefulWidget {
 class _ScanQrScreenState extends State<ScanQrScreen> {
   final MobileScannerController _scannerController = MobileScannerController(
     detectionSpeed: DetectionSpeed.normal,
-    facing: CameraFacing.back, // Changed to back camera for better UX
+    facing: CameraFacing.back, 
   );
   bool _isProcessing = false;
 
@@ -25,14 +26,12 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
     super.dispose();
   }
 
-  /// Handles the detection of a barcode.
+  
   void _onBarcodeDetected(BarcodeCapture capture) {
-    // Avoid processing multiple times for the same QR code.
     if (_isProcessing) {
       return;
     }
 
-    // A capture can contain multiple barcodes, we only need the first one.
     final Barcode? barcode = capture.barcodes.firstOrNull;
 
     if (barcode != null && barcode.rawValue != null) {
@@ -43,9 +42,38 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
       final String scannedCode = barcode.rawValue!;
       debugPrint('QR Code Detected: $scannedCode');
 
-      // Pop the screen and return the scanned code to the previous screen.
-      if (mounted) {
-        Navigator.of(context).pop(scannedCode);
+      try {
+        final data = jsonDecode(scannedCode);
+        final recipientId = data['uid'];
+        final amount = data['amount'] as double?;
+
+        if (recipientId != null) {
+          // Navigate to the payment screen with the recipient's UID and amount.
+          if (mounted) {
+            Navigator.of(context).pushReplacement(MaterialPageRoute(
+              builder: (context) => PayWithQrScreen(
+                recipientId: recipientId,
+                amount: amount, // Pass the amount to the next screen
+              ),
+            ));
+          }
+        } else {
+          throw Exception('QR code inválido: UID em falta.');
+        }
+      } catch (e) {
+        // Handle invalid QR code format
+        setState(() {
+          _isProcessing = false; // Allow scanning again
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Código QR inválido ou ilegível. Tente novamente.'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+        debugPrint('Error processing QR Code: $e');
       }
     }
   }
@@ -53,7 +81,6 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Define the scan window area.
     final scanWindow = Rect.fromCenter(
       center: MediaQuery.of(context).size.center(Offset.zero),
       width: 250,
@@ -65,18 +92,16 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // The main camera scanner view.
           MobileScanner(
             controller: _scannerController,
             onDetect: _onBarcodeDetected,
             scanWindow: scanWindow,
-            errorBuilder: (context, error) {
-              // CORRECTED: The errorBuilder signature now only has two parameters.
+            errorBuilder: (context, error) { // CORRIGIDO: Assinatura da função com 2 argumentos
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Text(
-                    'Ocorreu um erro ao iniciar a câmara: ${error.toString()}',
+                    'Ocorreu um erro ao iniciar a câmara: $error',
                     style: TextStyle(color: theme.colorScheme.error),
                     textAlign: TextAlign.center,
                   ),
@@ -84,16 +109,14 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
               );
             },
           ),
-          // A custom painter to draw an overlay over the camera view.
           CustomPaint(
             painter: _ScannerOverlayPainter(scanWindow: scanWindow),
           ),
-          // A simple instruction text for the user.
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
               padding: const EdgeInsets.all(24),
-              color: Colors.black.withAlpha(102), // ~40% opacity
+              color: Colors.black.withAlpha(102), 
               child: const Text(
                 'Aponte a câmara para o código QR para fazer a leitura.',
                 style: TextStyle(color: Colors.white),
@@ -107,8 +130,6 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
   }
 }
 
-/// This painter is used to create a visual overlay for the QR scanner.
-/// It darkens the area outside the [scanWindow] and draws a border around it.
 class _ScannerOverlayPainter extends CustomPainter {
   final Rect scanWindow;
 
@@ -118,20 +139,16 @@ class _ScannerOverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final backgroundPath = Path()..addRect(Rect.largest);
     final cutoutPath = Path()..addRect(scanWindow);
-
-    // Create a path that is the difference between the full screen and the scan window.
     final overlayPath = Path.combine(
       PathOperation.difference,
       backgroundPath,
       cutoutPath,
     );
 
-    // Paint for the dark overlay.
     final overlayPaint = Paint()
-      ..color = Colors.black.withAlpha(153) // ~60% opacity
+      ..color = Colors.black.withAlpha(153) 
       ..style = PaintingStyle.fill;
       
-    // Paint for the border around the scan window.
     final borderPaint = Paint()
       ..color = Colors.white
       ..strokeWidth = 4.0

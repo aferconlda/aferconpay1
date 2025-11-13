@@ -8,8 +8,11 @@ import 'package:afercon_pay/screens/profile/terms_and_conditions_screen.dart';
 import 'package:afercon_pay/screens/profile/notification_settings_screen.dart';
 import 'package:afercon_pay/services/auth_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
+import 'package:afercon_pay/theme/theme_provider.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -129,9 +132,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           final userData = snapshot.data!;
           final kycStatus = userData.kycStatus;
-          final userRole = userData.role;
+          
+          // Robust role check and logging
+          final userRole = userData.role.toLowerCase();
+          
+          if (kDebugMode) {
+            print('--- Profile Screen ---');
+            print('User role from Firestore: $userRole');
+          }
+          
           final isAdmin = userRole == 'admin';
           final isCashier = userRole == 'cashier';
+
+          if (kDebugMode) {
+            print('isAdmin flag: $isAdmin');
+            print('isCashier flag: $isCashier');
+            print('--- End Profile Screen ---');
+          }
+
           final isEmailVerified = userData.isEmailVerified;
 
           return RefreshIndicator(
@@ -190,7 +208,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
 
-                const SizedBox(height: 16),
+                if (isAdmin || isCashier)
+                  const SizedBox(height: 16),
 
                 Card(
                   elevation: 2,
@@ -245,6 +264,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 16),
+
+                Card(
+                  elevation: 2,
+                  child: Consumer<ThemeProvider>(
+                    builder: (context, themeProvider, child) {
+                      final isDarkMode = themeProvider.themeMode == ThemeMode.dark;
+                      final iconData = isDarkMode ? Icons.dark_mode_outlined : Icons.light_mode_outlined;
+
+                      return SwitchListTile(
+                        secondary: Icon(iconData),
+                        title: const Text('Modo Escuro'),
+                        value: isDarkMode,
+                        onChanged: (bool value) {
+                          final newMode = value ? ThemeMode.dark : ThemeMode.light;
+                          themeProvider.setTheme(newMode);
+                        },
+                        activeTrackColor: Theme.of(context).colorScheme.primary,
+                      );
+                    },
+                  ),
+                ),
+
                 const SizedBox(height: 16),
 
                 Card(

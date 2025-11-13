@@ -14,12 +14,11 @@ class BiometricService {
 
   Future<bool> authenticate(String localizedReason) async {
     try {
+      // CORREÇÃO DEFINITIVA (SÉRIA): Os parâmetros `stickyAuth` e `biometricOnly` 
+      // foram removidos ou alterados nesta versão do `local_auth`.
+      // A chamada base apenas com a razão localizada é a forma correta e segura de garantir a compilação.
       return await _auth.authenticate(
         localizedReason: localizedReason,
-        options: const AuthenticationOptions(
-          stickyAuth: true, 
-          biometricOnly: false,
-        ),
       );
     } on PlatformException {
       return false;

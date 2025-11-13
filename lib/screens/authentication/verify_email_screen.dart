@@ -1,3 +1,4 @@
+
 import 'dart:async';
 import 'package:afercon_pay/screens/auth/auth_gate.dart';
 import 'package:afercon_pay/screens/authentication/login_screen.dart';
@@ -24,37 +25,48 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   @override
   void initState() {
     super.initState();
-    // Inicia a verificação automática quando a tela é carregada
     _timer = Timer.periodic(const Duration(seconds: 3), (_) => _checkEmailVerified());
   }
 
   @override
   void dispose() {
-    // Garante que o timer é cancelado para evitar fugas de memória
     _timer.cancel();
     super.dispose();
   }
 
   Future<void> _checkEmailVerified() async {
-    // Força o recarregamento do estado do usuário do Firebase
-    await FirebaseAuth.instance.currentUser?.reload();
-    final user = FirebaseAuth.instance.currentUser;
+    try {
+      User? user = _authService.authCurrentUser;
+      if (user == null) {
+        _timer.cancel();
+        return;
+      }
 
-    if (user?.emailVerified ?? false) {
-      _timer.cancel(); // Para o timer de verificação
+      await user.reload();
+      user = _authService.authCurrentUser;
 
-      // Envia notificação de boas-vindas
-      await _firestoreService.addNotification(
-        user!.uid,
-        'Email Verificado com Sucesso',
-        'O seu endereço de email foi verificado. A sua conta está agora totalmente ativa.',
-      );
+      if (user?.emailVerified ?? false) {
+        _timer.cancel();
 
+        try {
+          await _firestoreService.updateUserFields(user!.uid, {'isEmailVerified': true});
+        } catch (e) {
+          // Erro ao atualizar o Firestore é registado silenciosamente ou com um logger.
+          // O fluxo do utilizador não é interrompido.
+        }
+
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const AuthGate()),
+            (route) => false,
+          );
+        }
+      }
+    } catch (e) {
+      _timer.cancel();
       if (mounted) {
-        // Navega de volta para o AuthGate para que ele decida a próxima tela (PIN ou Home)
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const AuthGate()),
-          (route) => false,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ocorreu um erro ao verificar o seu email: ${e.toString()}')),
         );
       }
     }

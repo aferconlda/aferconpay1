@@ -1,8 +1,11 @@
 
+import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/services/pin_service.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:provider/provider.dart';
 
 class PinSetupScreen extends StatefulWidget {
   final VoidCallback onPinSet;
@@ -20,26 +23,34 @@ class PinSetupScreenState extends State<PinSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
-  void _savePin() async {
+  Future<void> _savePin() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final firestoreService = context.read<FirestoreService>();
 
     setState(() => _isLoading = true);
 
     try {
       await _pinService.savePin(_pinController.text);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PIN de segurança definido com sucesso!')),
-        );
-        widget.onPinSet(); // Notifica o widget pai que o PIN foi definido
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception("Utilizador não autenticado. Não é possível atualizar o perfil.");
       }
+
+      // AGORA A CHAMADA ESTÁ CORRETA
+      await firestoreService.updateUserData(user.uid, {'hasTransactionPin': true});
+
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(content: Text('PIN de segurança definido com sucesso!')),
+      );
+      widget.onPinSet();
+
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao guardar o PIN: $e')),
-        );
-      }
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('Ocorreu um erro ao guardar o PIN: $e')),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

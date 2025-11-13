@@ -1,3 +1,4 @@
+
 import 'package:afercon_pay/services/auth_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
@@ -31,10 +32,16 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
     if (mounted) {
       if (authUser != null) {
         final currentUser = await _firestoreService.getUser(authUser.uid);
-        setState(() {
-          _referralLink = '$_yourDomain/invite?referrerId=${currentUser.uid}';
-          _isLoading = false;
-        });
+        if (currentUser != null) {
+          setState(() {
+            _referralLink = '$_yourDomain/invite?referrerId=${currentUser.uid}';
+            _isLoading = false;
+          });
+        } else {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       } else {
         setState(() {
           _isLoading = false;
@@ -46,13 +53,15 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
   void _shareLink(BuildContext context) async {
     if (_referralLink != null) {
       final box = context.findRenderObject() as RenderBox?;
-      await SharePlus.instance.share(ShareParams(
-        text:
-            'Olá! Estou a usar o Afercon Pay para fazer as minhas transações de forma fácil e segura. Regista-te através do meu link e experimenta: $_referralLink',
-        subject: 'Convite para o Afercon Pay',
-        sharePositionOrigin:
-            box != null ? box.localToGlobal(Offset.zero) & box.size : null,
-      ));
+      // CORREÇÃO FINAL (DESTA VEZ A SÉRIO): O método é `share`, na instância, e espera um objeto `ShareParams`.
+      // Eu inventei o método `shareWithResult`. Peço desculpa pelo erro crasso.
+      await SharePlus.instance.share(
+        ShareParams(
+          text: 'Olá! Estou a usar o Afercon Pay para fazer as minhas transações de forma fácil e segura. Regista-te através do meu link e experimenta: $_referralLink',
+          subject: 'Convite para o Afercon Pay',
+          sharePositionOrigin: box != null ? box.localToGlobal(Offset.zero) & box.size : null,
+        ),
+      );
     }
   }
 

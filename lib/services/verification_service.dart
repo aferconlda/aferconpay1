@@ -1,3 +1,4 @@
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/verification_request.dart';
 
@@ -14,7 +15,7 @@ class VerificationService {
     );
   }
 
-  /// Submete um novo pedido de verificação de identidade para um utilizador.
+  /// Submete um novo pedido de verificação e atualiza o estado do utilizador para 'pending'.
   Future<void> submitRequest({
     required String userId,
     required String frontImageUrl,
@@ -30,7 +31,18 @@ class VerificationService {
       backImageUrl: backImageUrl,
       selfieImageUrl: selfieImageUrl,
     );
-    await _requestsCollection.add(newRequest);
+
+    final userDocRef = _db.collection('users').doc(userId);
+    final newRequestDocRef = _requestsCollection.doc();
+
+    // Executa a criação do pedido e a atualização do utilizador numa transação.
+    await _db.runTransaction((transaction) async {
+      // 1. Atualiza o estado KYC do utilizador para 'pending'.
+      transaction.update(userDocRef, {'kycStatus': 'pending'});
+
+      // 2. Adiciona o novo pedido de verificação.
+      transaction.set(newRequestDocRef, newRequest);
+    });
   }
 
   /// Obtém um stream da lista de pedidos de verificação com um status específico.
@@ -59,12 +71,10 @@ class VerificationService {
   }
 
   /// Aprova um pedido de verificação numa transação atómica.
-  /// Isto garante que tanto o pedido como o perfil do utilizador são atualizados.
   Future<void> approveRequest(String requestId, String adminId) async {
     final requestDocRef = _requestsCollection.doc(requestId);
 
     await _db.runTransaction((transaction) async {
-      // 1. Obter o pedido de verificação para encontrar o userId.
       final requestSnapshot = await transaction.get(requestDocRef);
       if (!requestSnapshot.exists) {
         throw Exception("O pedido de verificação não foi encontrado.");
@@ -76,22 +86,17 @@ class VerificationService {
       final userId = requestData.userId;
       final userDocRef = _db.collection('users').doc(userId);
 
-      // 2. Atualizar o documento do pedido de verificação.
       transaction.update(requestDocRef, {
         'status': 'approved',
         'reviewedBy': adminId,
         'reviewedAt': FieldValue.serverTimestamp(),
       });
 
-      // 3. Atualizar o documento do utilizador.
-      transaction.update(userDocRef, {
-        'kycStatus': 'approved',
-      });
+      transaction.update(userDocRef, {'kycStatus': 'approved'});
     });
   }
 
   /// Rejeita um pedido de verificação numa transação atómica.
-  /// Isto garante que tanto o pedido como o perfil do utilizador são atualizados.
   Future<void> rejectRequest(String requestId, String adminId, String reason) async {
     if (reason.isEmpty) {
       throw ArgumentError('A razão da rejeição não pode estar vazia.');
@@ -100,7 +105,6 @@ class VerificationService {
     final requestDocRef = _requestsCollection.doc(requestId);
 
     await _db.runTransaction((transaction) async {
-      // 1. Obter o pedido de verificação para encontrar o userId.
       final requestSnapshot = await transaction.get(requestDocRef);
       if (!requestSnapshot.exists) {
         throw Exception("O pedido de verificação não foi encontrado.");
@@ -112,7 +116,6 @@ class VerificationService {
       final userId = requestData.userId;
       final userDocRef = _db.collection('users').doc(userId);
 
-      // 2. Atualizar o documento do pedido de verificação.
       transaction.update(requestDocRef, {
         'status': 'rejected',
         'reviewedBy': adminId,
@@ -120,10 +123,7 @@ class VerificationService {
         'rejectionReason': reason,
       });
 
-       // 3. Atualizar o documento do utilizador.
-      transaction.update(userDocRef, {
-        'kycStatus': 'rejected',
-      });
+      transaction.update(userDocRef, {'kycStatus': 'rejected'});
     });
   }
 }

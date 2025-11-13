@@ -11,23 +11,32 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
-// Pega o UID do utilizador a partir dos argumentos da linha de comando
+// Pega o UID do utilizador e o cargo a partir dos argumentos da linha de comando
 const uid = process.argv[2];
+const role = process.argv[3];
 
-if (!uid) {
-  console.error('Erro: É necessário fornecer o UID do utilizador como argumento.');
-  console.log('Uso: node set-admin.js <UID_DO_UTILIZADOR>');
+if (!uid || !role) {
+  console.error('Erro: É necessário fornecer o UID do utilizador e um cargo (admin ou cashier) como argumentos.');
+  console.log('Uso: node set-admin.js <UID_DO_UTILIZADOR> <CARGO>');
   process.exit(1);
 }
 
-// Define a "custom claim" de administrador para o utilizador especificado
-admin.auth().setCustomUserClaims(uid, { admin: true })
+if (role !== 'admin' && role !== 'cashier') {
+    console.error('Erro: O cargo especificado é inválido. Use "admin" ou "cashier".');
+    process.exit(1);
+}
+
+// Define a "custom claim" para o cargo do utilizador especificado
+let claims = {};
+claims[role] = true;
+
+admin.auth().setCustomUserClaims(uid, claims)
   .then(() => {
-    console.log(`Sucesso! O utilizador ${uid} é agora um administrador.`);
+    console.log(`Sucesso! O utilizador ${uid} é agora um ${role}.`);
     console.log('Pode verificar esta alteração na consola do Firebase, na secção Authentication.');
     process.exit(0);
   })
   .catch((error) => {
-    console.error('Erro ao definir o utilizador como administrador:', error);
+    console.error(`Erro ao definir o utilizador como ${role}:`, error);
     process.exit(1);
   });

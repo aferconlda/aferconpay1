@@ -15,6 +15,7 @@ class AppTheme {
   static const Color _mediumGrey = Color(0xFFBDBDBD);
   static const Color _darkGrey = Color(0xFF424242);
   static const Color _darkerGrey = Color(0xFF212121);
+  static const Color _almostBlack = Color(0xFF121212); // Cor de fundo padrão do Material Design para modo escuro
   static const Color _white = Color(0xFFFFFFFF);
   static const Color _black = Color(0xFF000000);
 
@@ -27,7 +28,6 @@ class AppTheme {
       primaryColor: primaryColor,
       scaffoldBackgroundColor: _lightGrey,
       visualDensity: VisualDensity.adaptivePlatformDensity,
-
       colorScheme: const ColorScheme.light(
         primary: primaryColor,
         secondary: secondaryColor,
@@ -38,42 +38,38 @@ class AppTheme {
         error: Colors.redAccent,
         onError: _white,
       ),
-
       appBarTheme: _appBarTheme(isDark: false),
       elevatedButtonTheme: _elevatedButtonTheme(),
       inputDecorationTheme: _inputDecorationTheme(isDark: false),
       cardTheme: _cardTheme(isDark: false),
       dialogTheme: _dialogTheme(isDark: false),
       dividerTheme: _dividerTheme(isDark: false),
+      bottomNavigationBarTheme: _bottomNavigationBarTheme(isDark: false),
     );
     return baseTheme.copyWith(
-      textTheme: GoogleFonts.latoTextTheme(baseTheme.textTheme),
+      textTheme: GoogleFonts.latoTextTheme(baseTheme.textTheme).apply(bodyColor: _black, displayColor: _black),
     );
   }
 
   // --------------------------------------------------
-  // GETTER PARA O TEMA ESCURO (COM GRADIENTE)
+  // GETTER PARA O TEMA ESCURO (CORRIGIDO)
   // --------------------------------------------------
   static ThemeData get darkTheme {
      final baseTheme = ThemeData(
       brightness: Brightness.dark,
       primaryColor: primaryColor,
-      // PASSO 1: Fundo transparente para deixar o gradiente passar
-      scaffoldBackgroundColor: Colors.transparent,
+      scaffoldBackgroundColor: _almostBlack, 
       visualDensity: VisualDensity.adaptivePlatformDensity,
-
       colorScheme: const ColorScheme.dark(
         primary: primaryColor,
         secondary: secondaryColor,
-        // PASSO 3: Efeito de vidro fosco para os cartões
-        surface: Color.fromRGBO(80, 80, 80, 0.5),
+        surface: _darkerGrey,
         onPrimary: _white,
         onSecondary: _white,
-        onSurface: _lightGrey,
+        onSurface: _white,
         error: Colors.redAccent,
         onError: _white,
       ),
-
       appBarTheme: _appBarTheme(isDark: true),
       elevatedButtonTheme: _elevatedButtonTheme(),
       inputDecorationTheme: _inputDecorationTheme(isDark: true),
@@ -81,9 +77,10 @@ class AppTheme {
       dialogTheme: _dialogTheme(isDark: true),
       dividerTheme: _dividerTheme(isDark: true),
       iconTheme: const IconThemeData(color: _white),
+      bottomNavigationBarTheme: _bottomNavigationBarTheme(isDark: true),
     );
      return baseTheme.copyWith(
-      textTheme: GoogleFonts.latoTextTheme(baseTheme.textTheme),
+      textTheme: GoogleFonts.latoTextTheme(baseTheme.textTheme).apply(bodyColor: _white, displayColor: _white),
     );
   }
 
@@ -93,11 +90,20 @@ class AppTheme {
 
   static AppBarTheme _appBarTheme({required bool isDark}) {
     return AppBarTheme(
-      // PASSO 3: Appbar transparente para se integrar com o gradiente
-      backgroundColor: Colors.transparent,
+      backgroundColor: isDark ? _darkerGrey : primaryColor, 
       elevation: 0,
       iconTheme: const IconThemeData(color: _white),
       titleTextStyle: GoogleFonts.lato(fontSize: 20, fontWeight: FontWeight.w600, color: _white),
+    );
+  }
+  
+  static BottomNavigationBarThemeData _bottomNavigationBarTheme({required bool isDark}) {
+    return BottomNavigationBarThemeData(
+      backgroundColor: isDark ? _darkerGrey : _white,
+      selectedItemColor: primaryColor,
+      unselectedItemColor: _mediumGrey,
+      type: BottomNavigationBarType.fixed,
+      elevation: 8,
     );
   }
 
@@ -116,16 +122,14 @@ class AppTheme {
   static InputDecorationTheme _inputDecorationTheme({required bool isDark}) {
     return InputDecorationTheme(
       filled: true,
-      // PASSO 3: Efeito de vidro fosco para os campos de input
-      fillColor: isDark ? const Color.fromRGBO(80, 80, 80, 0.5) : _white,
+      fillColor: isDark ? _darkGrey : _white,
       hintStyle: TextStyle(color: isDark ? _mediumGrey : _darkGrey),
       prefixIconColor: isDark ? _white : _darkGrey,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        // CORREÇÃO: Substituição de `withOpacity` por `withAlpha`
-        borderSide: isDark ? BorderSide(color: _mediumGrey.withAlpha(128)) : const BorderSide(color: _mediumGrey),
+        borderSide: BorderSide(color: isDark ? _mediumGrey.withAlpha(128) : _mediumGrey),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -138,13 +142,11 @@ class AppTheme {
   static CardThemeData _cardTheme({required bool isDark}) {
     return CardThemeData(
       clipBehavior: Clip.antiAlias,
-      // PASSO 3: Usar a cor de superfície com efeito de vidro fosco
-      color: isDark ? const Color.fromRGBO(80, 80, 80, 0.5) : _white,
-      elevation: isDark ? 0 : 2, // Sem sombra no modo escuro
+      color: isDark ? _darkerGrey : _white,
+      elevation: isDark ? 1 : 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12.0),
-        // Adicionar uma borda subtil no modo escuro
-        side: isDark ? BorderSide(color: _white.withAlpha(50)) : BorderSide.none, 
+        side: isDark ? BorderSide(color: Colors.grey.withAlpha(51)) : BorderSide.none, 
       ),
     );
   }
@@ -160,8 +162,7 @@ class AppTheme {
 
   static DividerThemeData _dividerTheme({required bool isDark}) {
     return DividerThemeData(
-      // CORREÇÃO: Substituição de `withOpacity` por `withAlpha`
-      color: isDark ? _mediumGrey.withAlpha(77) : _mediumGrey,
+      color: isDark ? _mediumGrey.withAlpha(128) : _mediumGrey,
       thickness: 1,
       space: 24,
     );

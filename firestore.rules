@@ -1,58 +1,93 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ===== FUNÇÕES AUXILIARES =====
+    // Helper function to check if a user is an admin
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Helper function to check if the user is the owner of the document
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
-
-    function isVerified() {
-      // Verifica se o utilizador está autenticado E se o seu email foi verificado.
-      return request.auth != null && request.auth.token.email_verified == true;
-    }
-
-    function isUpdatingAllowedFields() {
-      let isBalanceUnchanged = request.resource.data.balance == resource.data.balance;
-      let isFloatBalanceUnchanged = request.resource.data.floatBalance == resource.data.floatBalance;
-      let isCommissionBalanceUnchanged = request.resource.data.commissionBalance == resource.data.commissionBalance;
-      return isBalanceUnchanged && isFloatBalanceUnchanged && isCommissionBalanceUnchanged;
-    }
-
-    // ===== DADOS DO UTILIZADOR =====
+    
+    // USERS
     match /users/{userId} {
+      allow read: if request.auth != null;
       allow create: if isOwner(userId);
-      allow read: if isOwner(userId);
-      allow update: if isOwner(userId) && isUpdatingAllowedFields();
-      allow delete: if false;
+      allow update: if isOwner(userId);
+
+      // TRANSACTIONS & NOTIFICATIONS
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create, update, delete: if false; 
+      }
+      match /notifications/{notificationId} {
+        allow read: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow update: if isOwner(userId) && request.resource.data.keys().hasOnly(['read']);
+        allow create, delete: if false;
+      }
     }
 
-    // ===== SUBCOLEÇÕES DO UTILIZADOR =====
-    match /users/{userId}/{collection}/{docId} {
-      allow create, read, update: if isOwner(userId);
-      allow delete: if false;
+    // EXCHANGE OFFERS (P2P) - REGRA CORRIGIDA
+    match /exchange_offers/{offerId} {
+      // Qualquer utilizador autenticado pode ver (listar e obter) as ofertas.
+      allow list, get: if request.auth != null;
+
+      // As regras de escrita (create, update, delete) são tratadas pelas Cloud Functions,
+      // que bypassam estas regras. Negar a escrita direta do cliente aumenta a segurança.
+      allow create, update, delete: if false;
     }
 
-    // ===== PEDIDOS (TRANSAÇÕES) - SEGURANÇA RESTAURADA =====
-    // Estas operações exigem, corretamente, que o utilizador tenha o email verificado.
-    match /withdrawal_requests/{reqId} {
-      allow create: if isVerified() && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if false;
+    // P2P TRANSACTIONS
+    match /p2p_transactions/{transactionId} {
+        allow create: if false; // A criação é feita apenas via Cloud Function (takeOffer)
+
+        // READ: Apenas participantes ou um admin podem ler uma transação.
+        allow get, list: if request.auth != null && (request.auth.uid in resource.data.participantIds || isAdmin());
+
+        // UPDATE: A atualização é feita apenas via Cloud Functions (confirmPayment, etc.)
+        allow update: if false;
+
+        // Subcollections for chat and disputes
+        match /messages/{messageId} {
+            allow list, get, create: if request.auth != null && (request.auth.uid in get(/databases/$(database)/documents/p2p_transactions/$(transactionId)).data.participantIds);
+            allow update, delete: if false;
+        }
+
+        match /dispute_messages/{messageId} {
+            allow list, get, create: if request.auth != null && (request.auth.uid in get(/databases/$(database)/documents/p2p_transactions/$(transactionId)).data.participantIds || isAdmin());
+            allow update, delete: if false;
+        }
     }
 
-    match /credit_requests/{reqId} {
-      allow create: if isVerified() && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if false;
+    // CREDIT REQUESTS
+    match /credit_requests/{requestId} {
+      allow create: if request.auth != null;
+      allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    // DEPOSIT REQUESTS
+    match /deposit_requests/{requestId} {
+      allow create: if request.auth != null;
+      allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin(); 
     }
     
-    match /foreign_withdrawal_requests/{reqId} {
-      allow create: if isVerified() && request.resource.data.userId == request.auth.uid;
-      allow read, update, delete: if false;
+    // WITHDRAWAL REQUESTS
+    match /withdrawal_requests/{requestId} {
+      allow create: if request.auth != null;
+      allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
     }
-
-    match /transfer_requests/{transferId} {
-      allow create: if isVerified() && request.resource.data.senderId == request.auth.uid;
-      allow read, update, delete: if false;
-    }
+    
+    // Deprecated/Unused collections - Block all access
+    match /loans/{loanId} { allow read, write: if false; }
+    // A regra para p2p_offers foi removida, e a regra para exchange_offers foi corrigida.
   }
 }

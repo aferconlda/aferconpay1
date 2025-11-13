@@ -1,12 +1,15 @@
+
+import 'package:afercon_pay/models/user_model.dart';
 import 'package:afercon_pay/screens/authentication/login_screen.dart';
 import 'package:afercon_pay/screens/authentication/verify_email_screen.dart';
 import 'package:afercon_pay/screens/home/home_router_screen.dart';
 import 'package:afercon_pay/screens/security/pin_setup_screen.dart';
-import 'package:afercon_pay/services/auth_service.dart'; // PASSO 1: Importar o nosso serviço
-import 'package:afercon_pay/services/pin_service.dart';
+import 'package:afercon_pay/services/auth_service.dart';
+import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/widgets/inactivity_detector.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // O import do User é necessário
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -16,18 +19,16 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
-  final PinService _pinService = PinService();
-  // PASSO 2: Instanciar o nosso AuthService (será a instância Singleton)
-  final AuthService _authService = AuthService();
 
   @override
   Widget build(BuildContext context) {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final firestoreService = Provider.of<FirestoreService>(context, listen: false);
+
     return StreamBuilder<User?>(
-      // PASSO 3: Ouvir o stream do nosso AuthService em vez do FirebaseAuth
-      stream: _authService.authStateChanges,
+      stream: authService.authStateChanges,
       builder: (context, authSnapshot) {
-        // A lógica de "loading" pode precisar de ajuste dependendo do comportamento inicial do stream
-        if (authSnapshot.connectionState == ConnectionState.waiting && !authSnapshot.hasData) {
+        if (authSnapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
@@ -36,29 +37,50 @@ class _AuthGateState extends State<AuthGate> {
         if (authSnapshot.hasData) {
           final user = authSnapshot.data!;
 
-          // A lógica de verificação de email e PIN permanece a mesma
           if (!user.emailVerified) {
             return const VerifyEmailScreen();
           }
 
-          return FutureBuilder<bool>(
-            future: _pinService.isPinSet(),
-            builder: (context, pinSnapshot) {
-              if (pinSnapshot.connectionState == ConnectionState.waiting) {
+          // FutureBuilder is used here to handle the async operation of fetching user data
+          return FutureBuilder<UserModel?>(
+            future: firestoreService.getUser(user.uid),
+            builder: (context, userSnapshot) {
+              if (userSnapshot.connectionState == ConnectionState.waiting) {
                 return const Scaffold(
                   body: Center(child: CircularProgressIndicator()),
                 );
               }
 
-              if (pinSnapshot.hasData && pinSnapshot.data == true) {
+              if (userSnapshot.hasError || !userSnapshot.hasData) {
+                return Scaffold(
+                  body: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Error loading your data.'),
+                        ElevatedButton(
+                          onPressed: () => authService.signOut(),
+                          child: const Text('Try Again'),
+                        )
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              final userModel = userSnapshot.data!;
+
+              // Navigate based on whether the user has a transaction PIN
+              if (userModel.hasTransactionPin) {
                 return const InactivityDetector(
-                  child: HomeRouterScreen(), 
+                  child: HomeRouterScreen(),
                 );
               } else {
                 return PopScope(
-                  canPop: false,
+                   canPop: false,
                   child: PinSetupScreen(
                     onPinSet: () {
+                     // Call setState to rebuild the AuthGate
                       setState(() {});
                     },
                   ),
@@ -67,7 +89,7 @@ class _AuthGateState extends State<AuthGate> {
             },
           );
         } else {
-          // Se não há dados no stream, o utilizador está deslogado
+          // If there is no user data, show the login screen
           return const LoginScreen();
         }
       },

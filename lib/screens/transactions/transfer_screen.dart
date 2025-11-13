@@ -1,5 +1,5 @@
 import 'package:afercon_pay/models/user_model.dart';
-import 'package:afercon_pay/services/functions_service.dart';
+import 'package:afercon_pay/services/transaction_service.dart'; 
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
 import 'package:afercon_pay/services/auth_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
@@ -24,7 +24,7 @@ class _TransferScreenState extends State<TransferScreen> {
 
   final _authService = AuthService();
   final _firestoreService = FirestoreService();
-  final _functionsService = FunctionsService();
+  final _transactionService = TransactionService();
 
   User? _currentUser;
   UserModel? _recipientUser;
@@ -32,8 +32,6 @@ class _TransferScreenState extends State<TransferScreen> {
   bool _isSearching = false;
   bool _isProcessing = false;
   String? _searchError;
-
-  static const double _unverifiedTransactionLimit = 100000.0;
 
   @override
   void initState() {
@@ -100,23 +98,49 @@ class _TransferScreenState extends State<TransferScreen> {
     final recipientId = recipient.uid;
     final recipientName = recipient.displayName ?? 'desconhecido';
 
-    final result = await _functionsService.performP2PTransfer(
-      context: context,
-      recipientId: recipientId,
-      amount: amount,
-      description: description.isNotEmpty ? description : 'Transferência para $recipientName',
-    );
+    try {
+      await _transactionService.p2pTransfer(
+        recipientId: recipientId,
+        amount: amount,
+        description: description.isNotEmpty ? description : 'Transferência para $recipientName',
+      );
 
-    if (mounted) {
-      if (result != null) {
-        FirebaseAnalytics.instance.logPurchase(value: amount, currency: 'AOA');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Transferência realizada com sucesso!'),
+            backgroundColor: Colors.green[600],
+          ),
+        );
+        FirebaseAnalytics.instance.logEvent(name: 'p2p_transfer', parameters: {'amount': amount, 'currency': 'AOA'});
         _formKey.currentState?.reset();
         _recipientController.clear();
         _amountController.clear();
         _descriptionController.clear();
         setState(() => _recipientUser = null);
       }
-      setState(() => _isProcessing = false);
+    } catch (e) {
+      if (mounted) {
+        String errorMessage = 'Não foi possível concluir a transferência. Tente novamente.';
+        if (e is Exception) {
+            final message = e.toString().toLowerCase();
+            if (message.contains('insufficient funds')) {
+                errorMessage = 'O seu saldo é insuficiente para esta transferência.';
+            } else if (message.contains('user not found')) {
+                errorMessage = 'O destinatário não foi encontrado.';
+            }
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+        if (mounted) {
+            setState(() => _isProcessing = false);
+        }
     }
   }
 
@@ -140,11 +164,7 @@ class _TransferScreenState extends State<TransferScreen> {
 {                      return const Center(child: Text('Não foi possível carregar os dados do utilizador.'));
 }
                     final user = snapshot.data!;
-                    final userBalance = user.balance;
-                    final kycStatus = user.kycStatus;
-                    final unverifiedVolume = user.unverifiedTransactionVolume;
-                    final remainingKycLimit = _unverifiedTransactionLimit - unverifiedVolume;
-                    final isKycLimitExceeded = kycStatus.name != 'verified' && remainingKycLimit <= 0;
+                    final userBalance = user.balance['AOA'] ?? 0.0;
 
                     return SingleChildScrollView(
                       padding: const EdgeInsets.all(24),
@@ -161,7 +181,7 @@ class _TransferScreenState extends State<TransferScreen> {
                               _buildRecipientCard(_recipientUser),
                             if (_recipientUser != null) ...[
                               const SizedBox(height: 24),
-                              _buildBalanceAndKycWarning(theme, userBalance, kycStatus.name, remainingKycLimit),
+                              Text('Saldo disponível: ${NumberFormat.currency(locale: 'pt_AO', symbol: 'Kz').format(userBalance)}', style: theme.textTheme.bodyMedium),
                               const SizedBox(height: 16),
                               TextFormField(
                                 controller: _amountController,
@@ -172,7 +192,6 @@ class _TransferScreenState extends State<TransferScreen> {
                                   final amount = double.tryParse(v.replaceAll(',', '.'));
                                   if (amount == null || amount <= 0) return 'Insira um montante válido.';
                                   if (amount > userBalance) return 'Saldo insuficiente.';
-                                  if (kycStatus.name != 'verified' && amount > remainingKycLimit) return 'Montante excede o limite restante.';
                                   return null;
                                 },
                               ),
@@ -186,7 +205,7 @@ class _TransferScreenState extends State<TransferScreen> {
                             ElevatedButton.icon(
                               icon: const Icon(Icons.send),
                               label: const Text('Transferir Agora'),
-                              onPressed: (_recipientUser != null && !_isProcessing && !isKycLimitExceeded) ? _processTransfer : null,
+                              onPressed: (_recipientUser != null && !_isProcessing) ? _processTransfer : null,
                             ),
                             if (_isProcessing)
                               const Padding(padding: EdgeInsets.only(top: 16), child: Center(child: CircularProgressIndicator())),
@@ -218,45 +237,6 @@ class _TransferScreenState extends State<TransferScreen> {
           });
         }
       },
-    );
-  }
-
-  Widget _buildBalanceAndKycWarning(ThemeData theme, double balance, String kycStatus, double remainingKycLimit) {
-    final currencyFormat = NumberFormat.currency(locale: 'pt_AO', symbol: 'Kz');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Saldo disponível: ${currencyFormat.format(balance)}', style: theme.textTheme.bodyMedium),
-        if (kycStatus != 'verified') ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.tertiaryContainer.withAlpha(128),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, color: theme.colorScheme.onTertiaryContainer, size: 28),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Conta não verificada', style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Limite restante para transações: ${currencyFormat.format(remainingKycLimit > 0 ? remainingKycLimit : 0)}.',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
     );
   }
 

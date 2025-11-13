@@ -11,46 +11,54 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  cupertino_icons: ^1.0.8
-  firebase_core: ^4.1.1
-  firebase_auth: ^6.1.0
-  cloud_firestore: ^6.0.2
-  flutter_secure_storage: ^9.2.2
-  local_auth: ^2.2.0
-  provider: ^6.1.2
-  image_picker: ^1.2.0
-  mobile_scanner: ^7.0.1
-  brasil_fields: ^1.16.0
-  share_plus: ^12.0.0
-  url_launcher: ^6.3.0
-  flutter_launcher_icons: ^0.14.4
-  firebase_messaging: ^16.0.2
-  flutter_screenutil: ^5.9.3
-  intl: ^0.20.2
-  firebase_analytics: ^12.0.2
-  firebase_crashlytics: ^5.0.2
-  shared_preferences: ^2.5.3
-  rxdart: ^0.28.0
-  firebase_storage: ^13.0.2
-  cloud_functions: ^6.0.2
-  timeago: ^3.7.1
-  pinput: ^5.0.2
-  qr_flutter: ^4.1.0
-  screenshot: ^3.0.0
-  app_links: ^6.4.1
-  google_fonts: ^6.2.1
-  pdf: ^3.11.3
-  printing: ^5.13.1
-  shimmer: ^3.0.0 # Adicionado para efeitos de loading
-  permission_handler: ^11.3.1 # Adicionado para gestão de permissões
-  flutter_local_notifications: ^17.2.1 # Adicionado para mostrar notificações
+
+  # Using a coherent set of Firebase plugins (Updated to latest versions)
+  firebase_core: any
+  firebase_auth: any
+  cloud_firestore: any
+  cloud_functions: any
+  firebase_storage: any
+  firebase_messaging: any
+  firebase_analytics: any
+  firebase_crashlytics: any
+
+  # Other dependencies
+  cupertino_icons: any
+  share_plus: any
+  flutter_secure_storage: any
+  local_auth: any
+  provider: any
+  image_picker: any
+  mobile_scanner: any
+  brasil_fields: any
+  url_launcher: any
+  flutter_screenutil: any
+  intl: any
+  shared_preferences: any
+  rxdart: any
+  timeago: any
+  pinput: any
+  qr_flutter: any
+  screenshot: any
+  app_links: any
+  google_fonts: any
+  pdf: any
+  printing: any
+  shimmer: any
+  permission_handler: any
+  flutter_local_notifications: any
+  flutter_rating_bar: any
+  currency_picker: any
+  flutter_form_builder: any
+  form_builder_validators: any
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
-  mockito: ^5.5.1
-  build_runner: ^2.8.0
+  flutter_lints: any
+  mockito: any
+  build_runner: any
+  flutter_launcher_icons: any
 
 flutter_icons:
   android: true

@@ -1,7 +1,6 @@
 import 'package:afercon_pay/screens/credit/credit_main_screen.dart';
 import 'package:afercon_pay/screens/faq/faq_screen.dart';
 import 'package:afercon_pay/screens/home/home_screen.dart';
-import 'package:afercon_pay/screens/p2p_exchange/p2p_marketplace_screen.dart';
 import 'package:afercon_pay/screens/profile/profile_screen.dart';
 import 'package:afercon_pay/screens/transactions/transaction_history_screen.dart';
 import 'package:afercon_pay/theme/theme_provider.dart';
@@ -34,14 +33,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final List<Widget> screens = [
         const HomeScreen(),
         const TransactionHistoryScreen(),
-        const P2PMarketplaceScreen(),
         const CreditMainScreen(),
         const FaqScreen(),
       ];
     final List<String> titles = [
         'Afercon Pay',
         'Histórico de Transações',
-        'Mercado P2P',
         'Crédito Afercon',
         'Ajuda (FAQ)',
       ];
@@ -51,9 +48,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         ),
         const BottomNavigationBarItem(
           icon: Icon(Icons.history_outlined), activeIcon: Icon(Icons.history), label: 'Histórico',
-        ),
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.storefront_outlined), activeIcon: Icon(Icons.storefront), label: 'Mercado',
         ),
         const BottomNavigationBarItem(
           icon: Icon(Icons.account_balance_wallet_outlined), activeIcon: Icon(Icons.account_balance_wallet), label: 'Crédito',

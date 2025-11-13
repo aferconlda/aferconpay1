@@ -1,5 +1,6 @@
 {
   "firebase_hosting": {
     "deploymentHostingUrl": "https://aferconpay1.web.app"
-  }
+  },
+  "gemini_api": {}
 }

@@ -1,85 +1,104 @@
-
 import 'dart:async';
+import 'package:afercon_pay/services/notification_service.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:afercon_pay/models/user_model.dart';
 import 'firestore_service.dart';
 
 class AuthService {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+  final FirebaseFunctions _firebaseFunctions = FirebaseFunctions.instanceFor(region: 'europe-west1');
   final FirestoreService _firestoreService = FirestoreService();
+  final NotificationService _notificationService = NotificationService();
 
-  // Singleton pattern
   static final AuthService _instance = AuthService._internal();
   factory AuthService() {
     return _instance;
   }
   AuthService._internal();
 
-  // Stream para o estado de autenticação real
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
 
-  // Obter o utilizador de autenticação atual
   User? get authCurrentUser => _firebaseAuth.currentUser;
-  
-  // Obter o utilizador atual (compatibilidade)
+
   User? getCurrentUser() {
     return _firebaseAuth.currentUser;
   }
 
-  // Obter o modelo de utilizador do Firestore
   Future<UserModel?> getCurrentUserModel() async {
-    final user = authCurrentUser;
+    final user = _firebaseAuth.currentUser;
     if (user == null) return null;
     return _firestoreService.getUser(user.uid);
   }
 
-  // Métodos de autenticação existentes
-
   Future<UserCredential> signInWithEmailAndPassword(String email, String password) async {
-    return _firebaseAuth.signInWithEmailAndPassword(email: email, password: password);
+    final userCredential = await _firebaseAuth.signInWithEmailAndPassword(email: email, password: password);
+    if (userCredential.user != null) {
+      await _notificationService.saveTokenToDatabase();
+    }
+    return userCredential;
   }
 
-  Future<UserCredential> signUpWithEmailAndPassword({
-    required String email, 
+  // REPARADO: Adicionado o parâmetro referralCode
+  Future<void> signUpWithPhoneNumberCheck({
+    required String email,
     required String password,
     required String displayName,
     required String phoneNumber,
+    required String nif,
+    String? referralCode, // Parâmetro opcional para o código de convite
   }) async {
-     try {
-      final userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
-        email: email, 
-        password: password
+    User? user;
+    try {
+      // Passo 1: Criar o utilizador na autenticação
+      final UserCredential userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
       );
-      
-      // Após a criação do usuário na autenticação, crie o documento no Firestore
-      if (userCredential.user != null) {
-        await _firestoreService.createUser(
-          userCredential.user!.uid,
-          displayName,
-          email,
-          phoneNumber
-        );
-         // Opcional: Atualizar o display name no próprio objeto de autenticação do Firebase
-        await userCredential.user!.updateDisplayName(displayName);
+      user = userCredential.user;
+
+      if (user == null) {
+        throw Exception('A criação do utilizador na autenticação falhou.');
       }
 
-      return userCredential;
+      // Passo 2: Atualizar o nome de exibição
+      await user.updateDisplayName(displayName);
 
-    } on FirebaseAuthException {
-      // Tratar exceções específicas do Firebase Auth (e.g., email-already-in-use)
-      rethrow; // Relança a exceção para a UI tratar
+      // Passo 3: Chamar a Cloud Function com todos os dados, incluindo o código de convite
+      final callable = _firebaseFunctions.httpsCallable('createUserAccount');
+      final String internationalPhoneNumber = '+244$phoneNumber';
+
+      await callable.call(<String, dynamic>{
+        'uid': user.uid,
+        'email': email,
+        'phoneNumber': internationalPhoneNumber,
+        'displayName': displayName,
+        'nif': nif,
+        'referralCode': referralCode, // Enviar o código para a Cloud Function
+      });
+
     } catch (e) {
-      // Tratar outros erros
+      // BLOCO DE REVERSÃO: Se qualquer um dos passos acima falhar...
+      if (user != null) {
+        // ... apaga o utilizador da autenticação para que se possa tentar registar novamente.
+        await user.delete();
+      }
+      // Re-lança a exceção para que o ecrã de registo a possa apanhar e mostrar um erro.
       rethrow;
     }
   }
 
   Future<void> signOut() async {
+    await _notificationService.removeTokenFromDatabase();
     await _firebaseAuth.signOut();
   }
 
   Future<UserCredential> signInWithPhoneCredential(PhoneAuthCredential credential) async {
-    return _firebaseAuth.signInWithCredential(credential);
+    final userCredential = await _firebaseAuth.signInWithCredential(credential);
+    if (userCredential.user != null) {
+      await _notificationService.saveTokenToDatabase();
+    }
+    return userCredential;
   }
 
   Future<void> sendEmailVerification() async {
@@ -101,7 +120,7 @@ class AuthService {
     required Function(String) codeAutoRetrievalTimeout,
   }) async {
     await _firebaseAuth.setLanguageCode('pt');
-    
+
     return _firebaseAuth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
       verificationCompleted: verificationCompleted,

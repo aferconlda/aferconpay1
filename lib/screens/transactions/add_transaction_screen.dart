@@ -45,7 +45,7 @@ class AddTransactionScreenState extends State<AddTransactionScreen> {
           final userModel = await _firestoreService.getUser(authUser.uid);
           setState(() {
             _currentUser = userModel;
-            _userBalance = _currentUser?.balance ?? 0.0;
+            _userBalance = _currentUser?.balance['AOA'] ?? 0.0;
           });
         } else {
           setState(() {

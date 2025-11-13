@@ -1,5 +1,5 @@
 
-import 'package:afercon_pay/services/functions_service.dart';
+import 'package:afercon_pay/services/cashier_service.dart'; // NOVO: Serviço correto
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -20,7 +20,7 @@ class _CashierWithdrawalRequestScreenState
   final _bankNameController = TextEditingController();
   final _beneficiaryNameController = TextEditingController();
   
-  final FunctionsService _functionsService = FunctionsService();
+  final _cashierService = CashierService(); // NOVO: Instância do serviço correto
   bool _isLoading = false;
 
   @override
@@ -47,20 +47,33 @@ class _CashierWithdrawalRequestScreenState
       'beneficiaryName': _beneficiaryNameController.text,
     };
 
-    // <<< CHAMADA CORRIGIDA
-    final result = await _functionsService.requestCashierWithdrawal(
-      context: context,
-      data: withdrawalData,
-    );
+    try {
+      // USA O NOVO SERVIÇO
+      await _cashierService.requestCashierWithdrawal(withdrawalData);
 
-    // O feedback já é tratado pelo FunctionsService.
-    // Apenas fechamos a tela se a operação for bem-sucedida.
-    if (result != null && mounted) {
-      Navigator.of(context).pop();
-    }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Pedido de levantamento enviado com sucesso! Aguarda aprovação.'),
+            backgroundColor: Colors.green[600],
+          ),
+        );
+        Navigator.of(context).pop();
+      }
 
-    if (mounted) {
-      setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

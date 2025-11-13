@@ -1,44 +1,39 @@
-{ pkgs, ... }: {
-  channel = "stable-23.11";
-
+{pkgs}: {
+  channel = "stable-24.05";
   packages = [
-    pkgs.flutter
-    pkgs.dart
-    (pkgs.android-compose {
-      sdk-version = "33";
-      build-tools-version = "33.0.2";
-      cmdline-tools-version = "11.0";
-      platform-tools-version = "34.0.5";
-    })
+    pkgs.jdk17
+    pkgs.unzip
   ];
-
-  env = {
-    WEBDEV_SERVE_ARGS = "--tls-cert-chain /ide/host/certs/devenv.cert.pem --tls-cert-key /ide/host/certs/devenv.key.pem";
-    ANDROID_HOME = "${pkgs.android-compose}/share/android-sdk";
-    ANDROID_SDK_ROOT = "${pkgs.android-compose}/share/android-sdk";
-  };
-
-  idx = {
-    extensions = [
-      "dart-code.flutter"
-      "dart-code.dart-code"
-    ];
-
+  idx.extensions = [
+    
+  ];
+  idx.previews = {
     previews = {
-      enable = true;
-      previews = {
-        web = {
-          manager = "flutter";
-        };
-        android = {
-          manager = "flutter";
-        };
+      web = {
+        command = [
+          "flutter"
+          "run"
+          "--machine"
+          "-d"
+          "web-server"
+          "--web-hostname"
+          "0.0.0.0"
+          "--web-port"
+          "$PORT"
+        ];
+        manager = "flutter";
       };
-    };
-
-    workspace = {
-      onStart = {
-        accept-licenses = "yes | ${pkgs.android-compose}/bin/sdkmanager --licenses";
+      android = {
+        command = [
+          "flutter"
+          "run"
+          "--machine"
+          "-d"
+          "android"
+          "-d"
+          "localhost:5555"
+        ];
+        manager = "flutter";
       };
     };
   };

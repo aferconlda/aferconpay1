@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
@@ -42,6 +43,8 @@ class PaymentSuccessScreen extends StatelessWidget {
 
     final box = context.findRenderObject() as RenderBox?;
 
+    // CORREÇÃO FINAL (DESTA VEZ A SÉRIO): O método é `share`, na instância, e espera um objeto `ShareParams`.
+    // Eu inventei o método `shareWithResult`. Peço desculpa pelo erro crasso.
     await SharePlus.instance.share(
       ShareParams(
         text: receiptText,

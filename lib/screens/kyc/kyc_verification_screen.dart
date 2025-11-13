@@ -1,3 +1,4 @@
+
 import 'dart:io';
 import 'package:afercon_pay/models/user_model.dart';
 import 'package:afercon_pay/services/auth_service.dart';
@@ -43,10 +44,14 @@ class _KycVerificationScreenState extends State<KycVerificationScreen> {
     final authUser = _authService.getCurrentUser();
     if (mounted) {
       if (authUser != null) {
-        final userModel = await _firestoreService.getUser(authUser.uid);
-        setState(() {
-          _currentUser = userModel;
-          _isPageLoading = false;
+        // CORREÇÃO: Usar o nome de método correto 'getUserStream'.
+        _firestoreService.getUserStream(authUser.uid).listen((userModel) {
+          if (mounted) {
+            setState(() {
+              _currentUser = userModel;
+              _isPageLoading = false;
+            });
+          }
         });
       } else {
         setState(() {
@@ -141,8 +146,6 @@ class _KycVerificationScreenState extends State<KycVerificationScreen> {
         selfieImageUrl: urls[2],
       );
 
-      await _firestoreService.updateUserKycStatus(userId, KycStatus.pending);
-
       if (mounted) {
         FirebaseAnalytics.instance.logEvent(name: 'submit_kyc_application');
 
@@ -156,8 +159,7 @@ class _KycVerificationScreenState extends State<KycVerificationScreen> {
               TextButton(
                 child: const Text('OK'),
                 onPressed: () {
-                  Navigator.of(context).pop(); 
-                  Navigator.of(context).pop(); 
+                  Navigator.of(context).pop();
                 },
               ),
             ],
@@ -183,52 +185,116 @@ class _KycVerificationScreenState extends State<KycVerificationScreen> {
       appBar: const CustomAppBar(title: Text('Verificação de Identidade')),
       body: _isPageLoading
           ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 24.h),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Para garantir a segurança da sua conta, anexe fotos nítidas do seu documento e uma selfie.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: 24.h),
-                      _buildImagePickerBox(
-                        title: 'Frente do Documento',
-                        file: _frontImageFile,
-                        onTap: () => _handleImageSelection((image) => setState(() => _frontImageFile = image)),
-                      ),
-                      SizedBox(height: 16.h),
-                      _buildImagePickerBox(
-                        title: 'Verso do Documento',
-                        file: _backImageFile,
-                        onTap: () => _handleImageSelection((image) => setState(() => _backImageFile = image)),
-                      ),
-                      SizedBox(height: 16.h),
-                      _buildImagePickerBox(
-                        title: 'Selfie com o Documento',
-                        file: _selfieImageFile,
-                        onTap: () => _handleImageSelection((image) => setState(() => _selfieImageFile = image)),
-                      ),
-                      SizedBox(height: 32.h),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(minimumSize: Size.fromHeight(50.h)),
-                        onPressed: _isSubmitting ? null : _submitKyc,
-                        child: const Text('Submeter para Verificação'),
-                      ),
-                    ],
+          : _buildContent(),
+    );
+  }
+
+  Widget _buildContent() {
+    final status = _currentUser?.kycStatus;
+
+    if (status == KycStatus.pending || status == KycStatus.approved) {
+      return _buildStatusIndicator(status!);
+    } else {
+      return _buildSubmissionForm();
+    }
+  }
+
+  Widget _buildStatusIndicator(KycStatus status) {
+    String title;
+    String message;
+    IconData icon;
+    Color iconColor;
+
+    switch (status) {
+      case KycStatus.pending:
+        title = 'Documentos em Análise';
+        message = 'Recebemos os seus documentos e a nossa equipa está a analisá-los. Será notificado assim que o processo terminar.';
+        icon = Icons.hourglass_top_rounded;
+        iconColor = Colors.orange;
+        break;
+      case KycStatus.approved:
+        title = 'Conta Verificada';
+        message = 'Parabéns! A sua identidade foi verificada com sucesso. Já pode aceder a todas as funcionalidades.';
+        icon = Icons.check_circle_rounded;
+        iconColor = Colors.green;
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(icon, size: 80, color: iconColor),
+            SizedBox(height: 24.h),
+            Text(title, style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
+            SizedBox(height: 16.h),
+            Text(message, style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubmissionForm() {
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 24.h),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_currentUser?.kycStatus == KycStatus.rejected)
+                Padding(
+                  padding: EdgeInsets.only(bottom: 24.h),
+                  child: Text(
+                    'O seu pedido anterior foi rejeitado. Por favor, submeta novamente os seus documentos com mais atenção.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.error),
+                    textAlign: TextAlign.center,
                   ),
                 ),
-                if (_isSubmitting)
-                  Container(
-                    color: Colors.black.withAlpha(128),
-                    child: const Center(child: CircularProgressIndicator()),
-                  ),
-              ],
-            ),
+              Text(
+                'Para garantir a segurança da sua conta, anexe fotos nítidas do seu documento e uma selfie.',
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 24.h),
+              _buildImagePickerBox(
+                title: 'Frente do Documento',
+                file: _frontImageFile,
+                onTap: () => _handleImageSelection((image) => setState(() => _frontImageFile = image)),
+              ),
+              SizedBox(height: 16.h),
+              _buildImagePickerBox(
+                title: 'Verso do Documento',
+                file: _backImageFile,
+                onTap: () => _handleImageSelection((image) => setState(() => _backImageFile = image)),
+              ),
+              SizedBox(height: 16.h),
+              _buildImagePickerBox(
+                title: 'Selfie com o Documento',
+                file: _selfieImageFile,
+                onTap: () => _handleImageSelection((image) => setState(() => _selfieImageFile = image)),
+              ),
+              SizedBox(height: 32.h),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(minimumSize: Size.fromHeight(50.h)),
+                onPressed: _isSubmitting ? null : _submitKyc,
+                child: const Text('Submeter para Verificação'),
+              ),
+            ],
+          ),
+        ),
+        if (_isSubmitting)
+          Container(
+            color: Colors.black.withAlpha(128),
+            child: const Center(child: CircularProgressIndicator()),
+          ),
+      ],
     );
   }
 
@@ -251,16 +317,7 @@ class _KycVerificationScreenState extends State<KycVerificationScreen> {
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: kIsWeb
-                    ? FutureBuilder<Uint8List>(
-                        future: file.readAsBytes(),
-                        builder: (BuildContext context, AsyncSnapshot<Uint8List> snapshot) {
-                          if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
-                            return Image.memory(snapshot.data!, fit: BoxFit.cover, width: double.infinity, height: double.infinity);
-                          } else {
-                            return const Center(child: CircularProgressIndicator());
-                          }
-                        },
-                      )
+                    ? Image.network(file.path, fit: BoxFit.cover, width: double.infinity, height: double.infinity)
                     : Image.file(File(file.path), fit: BoxFit.cover),
               )
             : Column(
