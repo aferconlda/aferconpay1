@@ -1,14 +1,15 @@
 
 import 'package:afercon_pay/models/user_model.dart';
-import 'package:afercon_pay/services/transaction_service.dart'; // Use o serviço centralizado
+import 'package:afercon_pay/services/transaction_service.dart';
 import 'package:afercon_pay/services/auth_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/widgets/pin_confirmation_dialog.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class PayWithQrScreen extends StatefulWidget {
   final String recipientId;
-  final double? amount; // NOVO: Recebe o montante do QR Code
+  final double? amount;
 
   const PayWithQrScreen({super.key, required this.recipientId, this.amount});
 
@@ -28,7 +29,7 @@ class _PayWithQrScreenState extends State<PayWithQrScreen> {
   bool _isLoading = true;
   bool _isProcessingPayment = false;
   UserModel? _recipient;
-  UserModel? _currentUser; // NOVO: Para guardar os dados do utilizador atual
+  UserModel? _currentUser;
   String? _errorMessage;
 
   @override
@@ -37,7 +38,7 @@ class _PayWithQrScreenState extends State<PayWithQrScreen> {
     if (widget.amount != null) {
       _amountController.text = widget.amount!.toStringAsFixed(2);
     }
-    _loadInitialData(); // CORREÇÃO: Nome da função mais claro
+    _loadInitialData();
   }
 
   Future<void> _loadInitialData() async {
@@ -47,7 +48,6 @@ class _PayWithQrScreenState extends State<PayWithQrScreen> {
         throw Exception('Utilizador não autenticado.');
       }
 
-      // Carrega ambos os utilizadores em paralelo
       final [recipient, currentUser] = await Future.wait([
         _firestoreService.getUser(widget.recipientId),
         _firestoreService.getUser(authUser.uid),
@@ -66,7 +66,7 @@ class _PayWithQrScreenState extends State<PayWithQrScreen> {
       if (mounted) {
         setState(() {
           _recipient = recipient;
-          _currentUser = currentUser; // NOVO: Guarda o utilizador atual
+          _currentUser = currentUser;
           _isLoading = false;
         });
       }
@@ -85,6 +85,19 @@ class _PayWithQrScreenState extends State<PayWithQrScreen> {
       return;
     }
 
+    // FINAL AUTH CHECK: Ensure the user is still authenticated right before the transaction.
+    if (FirebaseAuth.instance.currentUser == null) {
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('A sua sessão expirou. Por favor, faça login novamente.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+      return;
+    }
+
     final bool isPinConfirmed = await showPinConfirmationDialog(context);
     if (!isPinConfirmed || !mounted) return;
 
@@ -95,6 +108,7 @@ class _PayWithQrScreenState extends State<PayWithQrScreen> {
     try {
       final amount = double.parse(_amountController.text.replaceAll('.', '').replaceAll(',', '.'));
 
+      // CORRECTED: Fixed the typo in the method name from p_2_p_transfer to p2pTransfer
       await _transactionService.p2pTransfer(
         recipientId: _recipient!.uid,
         amount: amount,
@@ -112,17 +126,9 @@ class _PayWithQrScreenState extends State<PayWithQrScreen> {
 
     } catch (e) {
       if (!mounted) return;
-      String errorMessage = 'Não foi possível concluir o pagamento. Tente novamente.';
-        if (e is Exception) {
-            final message = e.toString().toLowerCase();
-            if (message.contains('insufficient funds')) {
-                errorMessage = 'O seu saldo é insuficiente para este pagamento.';
-            } else if (message.contains('user not found')) {
-                errorMessage = 'O destinatário não foi encontrado.';
-            }
-        }
+      // The error from the service is already user-friendly
       scaffoldMessenger.showSnackBar(SnackBar(
-        content: Text(errorMessage),
+        content: Text(e.toString().replaceAll("Exception: ", "")),
         backgroundColor: Theme.of(context).colorScheme.error,
       ));
     } finally {
@@ -214,7 +220,7 @@ class _PayWithQrScreenState extends State<PayWithQrScreen> {
                                 children: [
                                   TextFormField(
                                     controller: _amountController,
-                                    readOnly: isAmountFromQr, // NOVO: Bloqueia o campo se o valor vier do QR
+                                    readOnly: isAmountFromQr,
                                     style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.secondary),
                                     textAlign: TextAlign.center,
                                     decoration: InputDecoration(
@@ -230,7 +236,6 @@ class _PayWithQrScreenState extends State<PayWithQrScreen> {
                                       final amount = double.tryParse(value.replaceAll('.', '').replaceAll(',', '.'));
                                       if (amount == null || amount <= 0) return 'Insira um valor válido.';
                                       
-                                      // CORREÇÃO: Validação de saldo implementada
                                       final balance = _currentUser?.balance['AOA'] ?? 0.0;
                                       if (amount > balance) {
                                         return 'Saldo insuficiente. Saldo atual: $balance Kz';

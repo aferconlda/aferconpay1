@@ -1,6 +1,5 @@
 import 'package:afercon_pay/models/user_model.dart';
-import 'package:afercon_pay/screens/cashier/scan_qr_and_process_screen.dart';
-import 'package:afercon_pay/services/cashier_service.dart'; // NOVO: Serviço correto
+import 'package:afercon_pay/services/cashier_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/services/pin_service.dart';
 import 'package:flutter/material.dart';
@@ -19,7 +18,7 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
   final _formKey = GlobalKey<FormState>();
   // Serviços
   final _firestoreService = FirestoreService();
-  final _cashierService = CashierService(); // NOVO: Instância do serviço correto
+  final _cashierService = CashierService();
   final _pinService = PinService();
 
   // Controladores
@@ -99,11 +98,10 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
     setState(() => _isProcessing = true);
 
     try {
-        // USA O NOVO SERVIÇO
       await _cashierService.processQrTransaction({
         'clientUid': _foundClient!.uid,
         'amount': amount,
-        'type': 'deposit', // MUDANÇA: O nome do campo é 'type'
+        'type': 'deposit',
       });
 
       if (mounted) {
@@ -356,6 +354,18 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+class ScanQrAndProcessScreen extends StatelessWidget {
+  const ScanQrAndProcessScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Escanear QR')),
+      body: const Center(child: Text('A ser implementado')),
     );
   }
 }

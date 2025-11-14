@@ -1,6 +1,5 @@
-
 import 'package:afercon_pay/models/user_model.dart';
-import 'package:afercon_pay/services/cashier_service.dart'; // NOVO: Serviço correto
+import 'package:afercon_pay/services/cashier_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -20,7 +19,7 @@ class _CashierAddFloatScreenState extends State<CashierAddFloatScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _firestoreService = FirestoreService();
-  final _cashierService = CashierService(); // NOVO: Instância do serviço correto
+  final _cashierService = CashierService();
   final _userId = FirebaseAuth.instance.currentUser!.uid;
   bool _isLoading = false;
 
@@ -35,7 +34,6 @@ class _CashierAddFloatScreenState extends State<CashierAddFloatScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // USA O NOVO SERVIÇO
       await _cashierService.addFloatFromBalance(amount);
       
       if (mounted) {
@@ -49,7 +47,6 @@ class _CashierAddFloatScreenState extends State<CashierAddFloatScreen> {
       }
 
     } catch (e) {
-      // Tratamento de erro melhorado
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

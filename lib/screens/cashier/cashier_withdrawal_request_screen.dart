@@ -1,5 +1,4 @@
-
-import 'package:afercon_pay/services/cashier_service.dart'; // NOVO: Serviço correto
+import 'package:afercon_pay/services/cashier_service.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -20,7 +19,7 @@ class _CashierWithdrawalRequestScreenState
   final _bankNameController = TextEditingController();
   final _beneficiaryNameController = TextEditingController();
   
-  final _cashierService = CashierService(); // NOVO: Instância do serviço correto
+  final _cashierService = CashierService();
   bool _isLoading = false;
 
   @override
@@ -48,7 +47,6 @@ class _CashierWithdrawalRequestScreenState
     };
 
     try {
-      // USA O NOVO SERVIÇO
       await _cashierService.requestCashierWithdrawal(withdrawalData);
 
       if (mounted) {

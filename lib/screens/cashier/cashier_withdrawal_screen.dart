@@ -1,8 +1,8 @@
+
 import 'package:afercon_pay/models/user_model.dart';
 import 'package:afercon_pay/services/cashier_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/services/pin_service.dart';
-import 'package:afercon_pay/utils/app_validators.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -112,7 +112,6 @@ class _CashierWithdrawalScreenState extends State<CashierWithdrawalScreen> {
             }
 
             final user = snapshot.data!;
-            // CORREÇÃO: Usa o campo correto 'totalCommissions'
             final commissionBalance = user.totalCommissions;
             final minimumWithdrawal = 5000.00; // Mínimo de 5000 Kz
 
@@ -246,5 +245,17 @@ class _CashierWithdrawalScreenState extends State<CashierWithdrawalScreen> {
         ),
       ),
     );
+  }
+}
+
+class AppValidators {
+  static String? pin(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'PIN inválido.';
+    }
+    if (value.length != 4) {
+      return 'O PIN deve ter 4 dígitos.';
+    }
+    return null;
   }
 }

@@ -84,6 +84,7 @@ class AddTransactionScreenState extends State<AddTransactionScreen> {
 
     final newTransaction = TransactionModel(
       id: '',
+      userId: _currentUser!.uid,
       description: _descriptionController.text,
       amount: double.parse(_amountController.text.replaceAll(',', '.')),
       date: _selectedDate,

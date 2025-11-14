@@ -71,6 +71,7 @@ class EditTransactionScreenState extends State<EditTransactionScreen> {
 
     final updatedTransaction = TransactionModel(
       id: widget.transaction.id,
+      userId: widget.transaction.userId,
       description: _descriptionController.text,
       amount: double.parse(_amountController.text),
       date: _selectedDate,

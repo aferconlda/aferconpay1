@@ -11,7 +11,7 @@ import 'package:afercon_pay/models/withdrawal_request_model.dart';
 import 'package:afercon_pay/models/commission_transaction_model.dart';
 
 class FirestoreService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore db = FirebaseFirestore.instance;
 
   // Singleton pattern
   static final FirestoreService _instance = FirestoreService._internal();
@@ -22,7 +22,7 @@ class FirestoreService {
 
   // Adicionado para suportar a atualização do ecrã de verificação
   Future<void> updateUserFields(String userId, Map<String, dynamic> data) {
-    return _db.collection('users').doc(userId).update(data);
+    return db.collection('users').doc(userId).update(data);
   }
 
   // ===================================================================
@@ -36,10 +36,10 @@ class FirestoreService {
     required double rating,
     String? comment,
   }) async {
-    final ratedUserRef = _db.collection('users').doc(ratedId);
-    final ratingRef = _db.collection('p2p_ratings').doc();
+    final ratedUserRef = db.collection('users').doc(ratedId);
+    final ratingRef = db.collection('p2p_ratings').doc();
 
-    return _db.runTransaction((transaction) async {
+    return db.runTransaction((transaction) async {
       final ratedUserSnapshot = await transaction.get(ratedUserRef);
 
       if (!ratedUserSnapshot.exists) {
@@ -87,11 +87,11 @@ class FirestoreService {
       referredBy: referredBy,
     );
 
-    return _db.collection('users').doc(userId).set(user.toMap());
+    return db.collection('users').doc(userId).set(user.toMap());
   }
 
   Stream<UserModel> getUserStream(String userId) {
-    return _db.collection('users').doc(userId).snapshots().map((snapshot) {
+    return db.collection('users').doc(userId).snapshots().map((snapshot) {
       if (snapshot.exists) {
         return UserModel.fromMap(snapshot.data()!);
       } else {
@@ -101,7 +101,7 @@ class FirestoreService {
   }
 
   Future<UserModel?> getUser(String userId) async {
-    final snapshot = await _db.collection('users').doc(userId).get();
+    final snapshot = await db.collection('users').doc(userId).get();
     if (snapshot.exists && snapshot.data() != null) {
       return UserModel.fromMap(snapshot.data()!);
     } else {
@@ -110,11 +110,11 @@ class FirestoreService {
   }
   
   Future<void> updateUserData(String userId, Map<String, dynamic> data) {
-    return _db.collection('users').doc(userId).update(data);
+    return db.collection('users').doc(userId).update(data);
   }
 
   Stream<List<UserModel>> getAllUsersStream() {
-    return _db.collection('users').snapshots().map((snapshot) =>
+    return db.collection('users').snapshots().map((snapshot) =>
         snapshot.docs.map((doc) => UserModel.fromMap(doc.data())).toList());
   }
 
@@ -123,15 +123,15 @@ class FirestoreService {
       'kycStatus': newStatus.name,
       'kycRejectionReason': rejectionReason,
     };
-    return _db.collection('users').doc(userId).update(data);
+    return db.collection('users').doc(userId).update(data);
   }
 
   Future<void> updateUserRole(String userId, String newRole) {
-    return _db.collection('users').doc(userId).update({'role': newRole});
+    return db.collection('users').doc(userId).update({'role': newRole});
   }
 
   Stream<List<UserModel>> getUsersByKycStatusStream(KycStatus status) {
-    return _db
+    return db
         .collection('users')
         .where('kycStatus', isEqualTo: status.name)
         .snapshots()
@@ -140,7 +140,7 @@ class FirestoreService {
   }
 
   Future<UserModel?> findUserByPhone(String phoneNumber) async {
-    final querySnapshot = await _db
+    final querySnapshot = await db
         .collection('users')
         .where('phoneNumber', isEqualTo: phoneNumber)
         .limit(1)
@@ -153,14 +153,14 @@ class FirestoreService {
   }
 
   Future<UserModel?> findUserByContact(String contact) async {
-    var querySnapshot = await _db
+    var querySnapshot = await db
         .collection('users')
         .where('phoneNumber', isEqualTo: contact)
         .limit(1)
         .get();
 
     if (querySnapshot.docs.isEmpty) {
-      querySnapshot = await _db
+      querySnapshot = await db
           .collection('users')
           .where('email', isEqualTo: contact)
           .limit(1)
@@ -178,7 +178,7 @@ class FirestoreService {
   // ===================================================================
 
   Stream<List<TransactionModel>> getTransactionsStream(String userId) {
-    return _db
+    return db
         .collection('users')
         .doc(userId)
         .collection('transactions')
@@ -190,7 +190,7 @@ class FirestoreService {
   }
   
   Future<void> addTransaction(String userId, TransactionModel transaction) async {
-    final docRef = _db
+    final docRef = db
         .collection('users')
         .doc(userId)
         .collection('transactions')
@@ -200,7 +200,7 @@ class FirestoreService {
   }
 
   Future<void> updateTransaction(String userId, String transactionId, TransactionModel transaction) {
-    return _db
+    return db
         .collection('users')
         .doc(userId)
         .collection('transactions')
@@ -209,7 +209,7 @@ class FirestoreService {
   }
 
   Future<void> deleteTransaction(String userId, String transactionId) {
-    return _db
+    return db
         .collection('users')
         .doc(userId)
         .collection('transactions')
@@ -225,7 +225,7 @@ class FirestoreService {
   // ===================================================================
 
   Stream<List<NotificationModel>> getNotificationsStream(String userId) {
-    return _db
+    return db
         .collection('users')
         .doc(userId)
         .collection('notifications')
@@ -244,7 +244,7 @@ class FirestoreService {
       date: Timestamp.now(),
       read: false,
     );
-    await _db
+    await db
         .collection('users')
         .doc(userId)
         .collection('notifications')
@@ -252,7 +252,7 @@ class FirestoreService {
   }
 
   Future<void> markNotificationAsRead(String userId, String notificationId) {
-    return _db
+    return db
         .collection('users')
         .doc(userId)
         .collection('notifications')
@@ -261,8 +261,8 @@ class FirestoreService {
   }
 
   Future<void> markAllNotificationsAsRead(String userId) async {
-    final batch = _db.batch();
-    final querySnapshot = await _db
+    final batch = db.batch();
+    final querySnapshot = await db
         .collection('users')
         .doc(userId)
         .collection('notifications')
@@ -281,11 +281,11 @@ class FirestoreService {
   // ===================================================================
 
   Future<void> createCreditApplication(CreditApplicationModel application) {
-    return _db.collection('credit_applications').add(application.toMap());
+    return db.collection('credit_applications').add(application.toMap());
   }
 
   Stream<List<CreditApplicationModel>> getCreditApplicationsStream(String userId) {
-    return _db
+    return db
         .collection('credit_applications')
         .where('userId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
@@ -300,7 +300,7 @@ class FirestoreService {
   // ===================================================================
 
   Stream<List<DepositRequestModel>> getPendingDepositRequestsStream() {
-    return _db
+    return db
         .collection('deposit_requests')
         .where('status', isEqualTo: 'pending')
         .snapshots()
@@ -310,7 +310,7 @@ class FirestoreService {
   }
 
   Stream<List<WithdrawalRequestModel>> getPendingWithdrawalRequestsStream() {
-    return _db
+    return db
         .collection('withdrawal_requests')
         .where('status', isEqualTo: 'pending')
         .snapshots()
@@ -345,7 +345,7 @@ class FirestoreService {
       throw Exception("User not found when creating withdrawal request.");
     }
 
-    final transactionId = _db.collection('users').doc(userId).collection('transactions').doc().id;
+    final transactionId = db.collection('users').doc(userId).collection('transactions').doc().id;
 
     final request = WithdrawalRequestModel(
       id: '', 
@@ -362,7 +362,7 @@ class FirestoreService {
       userEmail: user.email,
     );
     
-    await _db.collection('withdrawal_requests').add(request.toMap());
+    await db.collection('withdrawal_requests').add(request.toMap());
   }
 
 
@@ -371,7 +371,7 @@ class FirestoreService {
   // ===================================================================
   
   Stream<double> getCommissionBalanceStream(String cashierId) {
-    return _db.collection('users').doc(cashierId).snapshots().map((snapshot) {
+    return db.collection('users').doc(cashierId).snapshots().map((snapshot) {
       if (snapshot.exists) {
         return (snapshot.data()!['totalCommissions'] as num?)?.toDouble() ?? 0.0;
       }
@@ -380,7 +380,7 @@ class FirestoreService {
   }
 
   Stream<List<CommissionTransactionModel>> getCommissionHistoryStream(String cashierId) {
-    return _db
+    return db
         .collection('users')
         .doc(cashierId)
         .collection('commissionTransactions')
@@ -397,19 +397,19 @@ class FirestoreService {
   // ===================================================================
   
   Future<String> getOrCreateReferralCode(String userId) async {
-    final userDoc = await _db.collection('users').doc(userId).get();
+    final userDoc = await db.collection('users').doc(userId).get();
     if (userDoc.exists && userDoc.data()!.containsKey('referralCode')) {
       return userDoc.data()!['referralCode'];
     } else {
       final user = UserModel.fromMap(userDoc.data()!);
       final newCode = _generateReferralCode(user.displayName ?? 'USER');
-      await _db.collection('users').doc(userId).update({'referralCode': newCode});
+      await db.collection('users').doc(userId).update({'referralCode': newCode});
       return newCode;
     }
   }
 
   Future<int> getReferralsCount(String userId) async {
-    final querySnapshot = await _db
+    final querySnapshot = await db
         .collection('users')
         .where('referredBy', isEqualTo: userId)
         .get();

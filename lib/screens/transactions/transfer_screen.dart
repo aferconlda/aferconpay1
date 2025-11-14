@@ -1,7 +1,7 @@
 import 'package:afercon_pay/models/user_model.dart';
 import 'package:afercon_pay/services/transaction_service.dart'; 
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
-import 'package:afercon_pay/services/auth_service.dart';
+// import 'package/afercon_pay/services/auth_service.dart'; // No longer needed
 import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/widgets/pin_confirmation_dialog.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -22,7 +22,7 @@ class _TransferScreenState extends State<TransferScreen> {
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  final _authService = AuthService();
+  // final _authService = AuthService(); // No longer used, direct FirebaseAuth is better here
   final _firestoreService = FirestoreService();
   final _transactionService = TransactionService();
 
@@ -48,13 +48,15 @@ class _TransferScreenState extends State<TransferScreen> {
   }
 
   Future<void> _loadInitialData() async {
-    final user = _authService.getCurrentUser();
-    if (mounted) {
-      setState(() {
-        _currentUser = user;
-        _isLoading = false;
-      });
-    }
+    // Use the auth state changes stream to ensure we always have the latest user state
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+          _isLoading = false;
+        });
+      }
+    });
   }
 
   Future<void> _findRecipient() async {
@@ -88,6 +90,19 @@ class _TransferScreenState extends State<TransferScreen> {
 
     if (!(_formKey.currentState?.validate() ?? false) || recipient == null || _isProcessing) return;
 
+    // FINAL AUTH CHECK: Ensure the user is still authenticated right before the transaction.
+    if (FirebaseAuth.instance.currentUser == null) {
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('A sua sessão expirou. Por favor, faça login novamente.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+      return;
+    }
+
     final bool isPinConfirmed = await showPinConfirmationDialog(context);
     if (!isPinConfirmed || !mounted) return;
 
@@ -99,6 +114,7 @@ class _TransferScreenState extends State<TransferScreen> {
     final recipientName = recipient.displayName ?? 'desconhecido';
 
     try {
+      // The senderId is no longer needed as the Cloud Function gets it from the auth context
       await _transactionService.p2pTransfer(
         recipientId: recipientId,
         amount: amount,
@@ -121,18 +137,10 @@ class _TransferScreenState extends State<TransferScreen> {
       }
     } catch (e) {
       if (mounted) {
-        String errorMessage = 'Não foi possível concluir a transferência. Tente novamente.';
-        if (e is Exception) {
-            final message = e.toString().toLowerCase();
-            if (message.contains('insufficient funds')) {
-                errorMessage = 'O seu saldo é insuficiente para esta transferência.';
-            } else if (message.contains('user not found')) {
-                errorMessage = 'O destinatário não foi encontrado.';
-            }
-        }
+        // The error from the service is already user-friendly
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
+            content: Text(e.toString().replaceAll("Exception: ", "")),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );

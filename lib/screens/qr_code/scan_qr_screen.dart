@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:afercon_pay/screens/qr_code/pay_with_qr_screen.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
+import 'package:flutter/foundation.dart' show kIsWeb; // Import for platform checking
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -14,15 +15,31 @@ class ScanQrScreen extends StatefulWidget {
 }
 
 class _ScanQrScreenState extends State<ScanQrScreen> {
-  final MobileScannerController _scannerController = MobileScannerController(
-    detectionSpeed: DetectionSpeed.normal,
-    facing: CameraFacing.back, 
-  );
+  // Controller is nullable to handle the web platform case
+  MobileScannerController? _scannerController;
   bool _isProcessing = false;
+  bool _isWebUnsupported = false;
+
+
+  @override
+  void initState() {
+    super.initState();
+    // Conditionally initialize the scanner only on non-web platforms.
+    if (kIsWeb) {
+      setState(() {
+        _isWebUnsupported = true;
+      });
+    } else {
+      _scannerController = MobileScannerController(
+        detectionSpeed: DetectionSpeed.normal,
+        facing: CameraFacing.back, 
+      );
+    }
+  }
 
   @override
   void dispose() {
-    _scannerController.dispose();
+    _scannerController?.dispose();
     super.dispose();
   }
 
@@ -81,6 +98,24 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    
+    if (_isWebUnsupported) {
+      return Scaffold(
+        appBar: const CustomAppBar(title: Text('Ler Código QR')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Text(
+              'A leitura de código QR não é suportada nesta plataforma. Por favor, utilize a aplicação móvel.',
+              style: theme.textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // This part will only build if not on the web
     final scanWindow = Rect.fromCenter(
       center: MediaQuery.of(context).size.center(Offset.zero),
       width: 250,
@@ -93,10 +128,11 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
         fit: StackFit.expand,
         children: [
           MobileScanner(
-            controller: _scannerController,
+            controller: _scannerController!, // Controller is guaranteed to be non-null here
             onDetect: _onBarcodeDetected,
             scanWindow: scanWindow,
-            errorBuilder: (context, error) { // CORRIGIDO: Assinatura da função com 2 argumentos
+            // CORRECTED: The errorBuilder function signature now has only two parameters as expected.
+            errorBuilder: (context, error) { 
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
