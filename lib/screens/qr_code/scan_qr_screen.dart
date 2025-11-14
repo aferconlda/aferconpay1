@@ -1,11 +1,10 @@
 
-import 'dart:convert';
 import 'package:afercon_pay/screens/qr_code/pay_with_qr_screen.dart';
+import 'package:afercon_pay/utils/qr_code_parser.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
-import 'package:flutter/foundation.dart' show kIsWeb; // Import for platform checking
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-
 
 class ScanQrScreen extends StatefulWidget {
   const ScanQrScreen({super.key});
@@ -15,16 +14,13 @@ class ScanQrScreen extends StatefulWidget {
 }
 
 class _ScanQrScreenState extends State<ScanQrScreen> {
-  // Controller is nullable to handle the web platform case
   MobileScannerController? _scannerController;
   bool _isProcessing = false;
   bool _isWebUnsupported = false;
 
-
   @override
   void initState() {
     super.initState();
-    // Conditionally initialize the scanner only on non-web platforms.
     if (kIsWeb) {
       setState(() {
         _isWebUnsupported = true;
@@ -32,7 +28,7 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
     } else {
       _scannerController = MobileScannerController(
         detectionSpeed: DetectionSpeed.normal,
-        facing: CameraFacing.back, 
+        facing: CameraFacing.back,
       );
     }
   }
@@ -43,11 +39,18 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
     super.dispose();
   }
 
-  
-  void _onBarcodeDetected(BarcodeCapture capture) {
-    if (_isProcessing) {
-      return;
-    }
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
+  }
+
+  Future<void> _onBarcodeDetected(BarcodeCapture capture) async {
+    if (_isProcessing) return;
 
     final Barcode? barcode = capture.barcodes.firstOrNull;
 
@@ -60,37 +63,38 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
       debugPrint('QR Code Detected: $scannedCode');
 
       try {
-        final data = jsonDecode(scannedCode);
-        final recipientId = data['uid'];
-        final amount = data['amount'] as double?;
+        final qrParser = QrCodeParser(scannedCode);
+        final parsedData = await qrParser.parse();
 
-        if (recipientId != null) {
-          // Navigate to the payment screen with the recipient's UID and amount.
-          if (mounted) {
-            Navigator.of(context).pushReplacement(MaterialPageRoute(
-              builder: (context) => PayWithQrScreen(
-                recipientId: recipientId,
-                amount: amount, // Pass the amount to the next screen
-              ),
-            ));
-          }
-        } else {
-          throw Exception('QR code inválido: UID em falta.');
-        }
-      } catch (e) {
-        // Handle invalid QR code format
-        setState(() {
-          _isProcessing = false; // Allow scanning again
-        });
+        final recipientId = parsedData['uid'];
+        final amount = parsedData['amount'];
+        // final type = parsedData['type']; // Available for future use
+
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Código QR inválido ou ilegível. Tente novamente.'),
-              backgroundColor: Theme.of(context).colorScheme.error,
+          // Use push instead of pushReplacement to allow returning to the scanner
+          await Navigator.of(context).push(MaterialPageRoute(
+            builder: (context) => PayWithQrScreen(
+              recipientId: recipientId,
+              amount: amount,
             ),
-          );
+          ));
+          // After returning from the payment screen, allow scanning again
+          setState(() {
+            _isProcessing = false;
+          });
         }
+      } on FormatException catch (e) {
+        _showErrorSnackBar(e.message);
         debugPrint('Error processing QR Code: $e');
+        setState(() {
+          _isProcessing = false;
+        });
+      } catch (e) {
+        _showErrorSnackBar('Ocorreu um erro desconhecido ao processar o código.');
+        debugPrint('Error processing QR Code: $e');
+        setState(() {
+          _isProcessing = false;
+        });
       }
     }
   }
@@ -115,7 +119,6 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
       );
     }
 
-    // This part will only build if not on the web
     final scanWindow = Rect.fromCenter(
       center: MediaQuery.of(context).size.center(Offset.zero),
       width: 250,
@@ -128,10 +131,9 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
         fit: StackFit.expand,
         children: [
           MobileScanner(
-            controller: _scannerController!, // Controller is guaranteed to be non-null here
+            controller: _scannerController!,
             onDetect: _onBarcodeDetected,
             scanWindow: scanWindow,
-            // CORRECTED: The errorBuilder function signature now has only two parameters as expected.
             errorBuilder: (context, error) { 
               return Center(
                 child: Padding(
