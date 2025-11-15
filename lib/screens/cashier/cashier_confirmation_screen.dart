@@ -1,7 +1,7 @@
 import 'package:afercon_pay/models/user_model.dart';
+import 'package:afercon_pay/services/cashier_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/widgets/custom_app_bar.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
@@ -17,8 +17,7 @@ class CashierConfirmationScreen extends StatefulWidget {
 }
 
 class _CashierConfirmationScreenState extends State<CashierConfirmationScreen> {
-  final FirebaseFunctions _functions =
-      FirebaseFunctions.instanceFor(region: 'europe-west1');
+  final CashierService _cashierService = CashierService();
   final FirestoreService _firestoreService = FirestoreService();
   Future<UserModel?>? _clientDataFuture;
   bool _isProcessing = false;
@@ -54,7 +53,9 @@ class _CashierConfirmationScreenState extends State<CashierConfirmationScreen> {
   }
 
   Future<void> _onConfirmTransaction() async {
-    if (_clientUid == null || _transactionType == null) {
+    final uid = _clientUid;
+    final type = _transactionType;
+    if (uid == null || type == null) {
       _showErrorSnackbar('Dados da transação inválidos. Por favor, tente novamente.');
       return;
     }
@@ -62,20 +63,27 @@ class _CashierConfirmationScreenState extends State<CashierConfirmationScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      final callable = _functions.httpsCallable('processQrTransaction');
-      final result = await callable.call<Map<String, dynamic>>({
-        'clientUid': _clientUid,
-        'amount': _amount,
-        'transactionType': _transactionType,
-      });
+      String successMessage;
+      if (type == 'deposit') {
+        final result = await _cashierService.processClientDeposit(
+          clientId: uid,
+          amount: _amount,
+        );
+        successMessage = result['message'] ?? 'Depósito concluído com sucesso!';
+      } else if (type == 'withdrawal') {
+        final result = await _cashierService.processClientWithdrawal(
+          clientId: uid,
+          amount: _amount,
+        );
+        successMessage = result['message'] ?? 'Levantamento concluído com sucesso!';
+      } else {
+        throw Exception('Tipo de transação desconhecido.');
+      }
 
       if (!mounted) return;
-
-      _showSuccessDialog(result.data['message'] ?? 'Transação Concluída');
-    } on FirebaseFunctionsException catch (e) {
-      _showErrorSnackbar(e.message ?? 'Ocorreu um erro no servidor.');
+      _showSuccessDialog(successMessage);
     } catch (e) {
-      _showErrorSnackbar('Ocorreu um erro inesperado: ${e.toString()}');
+      _showErrorSnackbar(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
@@ -94,7 +102,7 @@ class _CashierConfirmationScreenState extends State<CashierConfirmationScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError || !snapshot.hasData) {
+          if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -122,16 +130,18 @@ class _CashierConfirmationScreenState extends State<CashierConfirmationScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
                   child: Padding(
                     padding: EdgeInsets.all(20.w),
                     child: Column(
                       children: [
                         Text(_transactionTypeDisplay.toUpperCase(),
-                            style: theme.textTheme.titleMedium),
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                         SizedBox(height: 12.h),
                         Text(
                           currencyFormat.format(_amount),
-                          style: theme.textTheme.headlineLarge?.copyWith(
+                          style: theme.textTheme.displaySmall?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: theme.colorScheme.primary),
                         ),
@@ -140,23 +150,25 @@ class _CashierConfirmationScreenState extends State<CashierConfirmationScreen> {
                         SizedBox(height: 12.h),
                         _buildInfoRow(context, 'Cliente', clientName),
                         _buildInfoRow(
-                            context, 'ID do Cliente', widget.transactionData['uid']),
+                            context, 'ID do Cliente', widget.transactionData['uid'] ?? 'N/A'),
                       ],
                     ),
                   ),
                 ),
                 const Spacer(),
-                _isProcessing
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                        onPressed: _onConfirmTransaction,
-                        style: ElevatedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 16.h),
-                          backgroundColor: theme.colorScheme.primary,
-                          foregroundColor: theme.colorScheme.onPrimary,
-                        ),
-                        child: Text('Confirmar $_transactionTypeDisplay'),
-                      ),
+                if (_isProcessing)
+                  const Center(child: CircularProgressIndicator())
+                else
+                  ElevatedButton(
+                    onPressed: _onConfirmTransaction,
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 16.h),
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: theme.colorScheme.onPrimary,
+                      textStyle: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
+                    ),
+                    child: Text('Confirmar $_transactionTypeDisplay'),
+                  ),
                 SizedBox(height: 12.h),
                 OutlinedButton(
                   onPressed: _isProcessing
@@ -178,6 +190,7 @@ class _CashierConfirmationScreenState extends State<CashierConfirmationScreen> {
         SnackBar(
           content: Text(message),
           backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -188,13 +201,20 @@ class _CashierConfirmationScreenState extends State<CashierConfirmationScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Transação Concluída'),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green),
+            SizedBox(width: 10),
+            Text('Transação Concluída'),
+          ],
+        ),
         content: Text(message),
         actions: [
           TextButton(
             child: const Text('OK'),
             onPressed: () {
               int popCount = 0;
+              // Pop 2 times: one for the dialog, one for the confirmation screen
               Navigator.of(context).popUntil((_) => popCount++ >= 2);
             },
           ),
@@ -217,6 +237,7 @@ class _CashierConfirmationScreenState extends State<CashierConfirmationScreen> {
               style: theme.textTheme.bodyLarge
                   ?.copyWith(fontWeight: FontWeight.w600),
               textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

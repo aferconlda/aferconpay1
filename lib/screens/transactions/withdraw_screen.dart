@@ -465,7 +465,6 @@ Widget _buildHeader(BuildContext context, double balance, KycStatus kycStatus,
     {required bool isBank}) {
   final theme = Theme.of(context);
   final currencyFormat = NumberFormat.currency(locale: 'pt_AO', symbol: 'Kz');
-  final bool isKycVerified = kycStatus == KycStatus.approved;
 
   return Column(
     children: [
@@ -478,38 +477,6 @@ Widget _buildHeader(BuildContext context, double balance, KycStatus kycStatus,
       SizedBox(height: 8.h),
       Text('Saldo disponível: ${currencyFormat.format(balance)}',
           textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
-      if (!isKycVerified) ...[
-        SizedBox(height: 20.h),
-        Container(
-          padding: EdgeInsets.all(12.w),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.tertiaryContainer.withAlpha(128),
-            borderRadius: BorderRadius.circular(12.r),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.info_outline,
-                  color: theme.colorScheme.onTertiaryContainer, size: 28.r),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('A sua conta não foi verificada.',
-                        style: theme.textTheme.labelLarge
-                            ?.copyWith(fontWeight: FontWeight.bold)),
-                    SizedBox(height: 4.h),
-                    Text(
-                      'O seu limite restante para levantamentos é de ${currencyFormat.format(remainingKycLimit > 0 ? remainingKycLimit : 0)}.',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     ],
   );
 }

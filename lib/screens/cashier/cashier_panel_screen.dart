@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:afercon_pay/models/user_model.dart';
 import 'package:afercon_pay/screens/cashier/cashier_add_float_screen.dart';
+import 'package:afercon_pay/screens/cashier/cashier_withdraw_float_screen.dart';
 import 'package:afercon_pay/services/auth_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/screens/cashier/cashier_confirmation_screen.dart';
@@ -138,6 +139,18 @@ class _CashierPanelScreenState extends State<CashierPanelScreen> {
             Navigator.of(context).push(
               MaterialPageRoute(
                   builder: (context) => const CashierAddFloatScreen()),
+            );
+          },
+        ),
+        SizedBox(height: 16.h),
+        _buildActionButton(
+          context: context,
+          icon: Icons.move_down_outlined,
+          label: 'Mover para Saldo Principal',
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (context) => const CashierWithdrawFloatScreen()),
             );
           },
         ),

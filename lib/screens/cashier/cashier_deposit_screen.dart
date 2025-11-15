@@ -2,10 +2,12 @@ import 'package:afercon_pay/models/user_model.dart';
 import 'package:afercon_pay/services/cashier_service.dart';
 import 'package:afercon_pay/services/firestore_service.dart';
 import 'package:afercon_pay/services/pin_service.dart';
+import 'package:afercon_pay/utils/qr_code_parser.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:intl/intl.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class CashierDepositScreen extends StatefulWidget {
   const CashierDepositScreen({super.key});
@@ -135,10 +137,49 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
     }
   }
 
-  void _navigateToScanQr() {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (context) => const ScanQrAndProcessScreen(),
-    ));
+  Future<void> _navigateToScanQr() async {
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (context) => const ScanQrAndProcessScreen(),
+      ),
+    );
+
+    if (result != null && mounted) {
+        final String? clientUid = result['uid'];
+        final double? amount = result['amount'];
+
+        if(clientUid != null) {
+            setState(() {
+                _isSearching = true;
+                _foundClient = null;
+                _searchError = null;
+            });
+
+            try {
+                final client = await _firestoreService.getUser(clientUid);
+                if (!mounted) return;
+
+                if (client == null) {
+                    setState(() => _searchError = 'Cliente do QR Code não encontrado.');
+                } else {
+                    setState(() {
+                        _foundClient = client;
+                        if (amount != null && amount > 0) {
+                            _amountController.text = amount.toStringAsFixed(2);
+                        }
+                    });
+                }
+            } catch (e) {
+                if (mounted) {
+                    setState(() => _searchError = 'Erro ao obter dados do cliente.');
+                }
+            } finally {
+                if (mounted) {
+                    setState(() => _isSearching = false);
+                }
+            }
+        }
+    }
   }
 
   @override
@@ -161,6 +202,8 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
                   child: Text(_searchError!, style: TextStyle(color: theme.colorScheme.error)),
                 ),
               SizedBox(height: 24.h),
+              if (_isSearching)
+                const Center(child: CircularProgressIndicator()),
               if (_foundClient != null) _buildDepositForm(theme),
             ],
           ),
@@ -199,7 +242,6 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
           controller: _phoneController,
           decoration: const InputDecoration(labelText: 'Nº de Telemóvel do Cliente', prefixIcon: Icon(Icons.phone)),
           keyboardType: TextInputType.phone,
-          validator: (value) => (value?.isEmpty ?? true) ? 'Insira um número.' : null,
         ),
         SizedBox(height: 16.h),
         ElevatedButton.icon(
@@ -221,7 +263,7 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
           child: ListTile(
             leading: const Icon(Icons.person, color: Colors.green, size: 40),
             title: Text(_foundClient!.displayName ?? 'Nome não disponível', style: theme.textTheme.titleMedium),
-            subtitle: Text('Cliente encontrado: ${_foundClient!.email ?? 'Email não disponível'}'),
+            subtitle: Text('Cliente: ${_foundClient!.email ?? 'Email não disponível'}'),
           ),
         ),
         SizedBox(height: 16.h),
@@ -358,14 +400,169 @@ class _CashierDepositScreenState extends State<CashierDepositScreen> {
   }
 }
 
-class ScanQrAndProcessScreen extends StatelessWidget {
+// --- Ecrã de Leitura de QR Implementado ---
+class ScanQrAndProcessScreen extends StatefulWidget {
   const ScanQrAndProcessScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Escanear QR')),
-      body: const Center(child: Text('A ser implementado')),
+  State<ScanQrAndProcessScreen> createState() => _ScanQrAndProcessScreenState();
+}
+
+class _ScanQrAndProcessScreenState extends State<ScanQrAndProcessScreen> {
+  final MobileScannerController _scannerController = MobileScannerController(
+    detectionSpeed: DetectionSpeed.normal,
+    facing: CameraFacing.back,
+  );
+  bool _isProcessing = false;
+
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
     );
+  }
+
+  Future<void> _onBarcodeDetected(BarcodeCapture capture) async {
+    if (_isProcessing) return;
+
+    final Barcode? barcode = capture.barcodes.firstOrNull;
+    if (barcode != null && barcode.rawValue != null) {
+      setState(() {
+        _isProcessing = true;
+      });
+
+      try {
+        final qrParser = QrCodeParser(barcode.rawValue!);
+        final parsedData = await qrParser.parse();
+
+        if (mounted) {
+          // Retorna os dados lidos para o ecrã anterior
+          Navigator.of(context).pop(parsedData);
+        }
+      } on FormatException catch (e) {
+        _showErrorSnackBar(e.message);
+        setState(() => _isProcessing = false);
+      } catch (e) {
+        _showErrorSnackBar('Erro desconhecido ao processar o código.');
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scannerController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final double scanBoxSize = 250.0;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Escanear QR do Cliente')),
+      body: SafeArea(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            MobileScanner(
+              controller: _scannerController,
+              onDetect: _onBarcodeDetected,
+              errorBuilder: (context, error) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Erro ao iniciar a câmara: $error',
+                      style: TextStyle(color: theme.colorScheme.error),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              },
+            ),
+            CustomPaint(
+              painter: _ScannerOverlayPainter(scanBoxSize: scanBoxSize),
+            ),
+             Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                color: Colors.black.withAlpha(102), // ~40% opacity
+                child: const Text(
+                  'Aponte a câmara para o código QR do cliente.',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.flash_on_rounded, color: Colors.white, size: 28),
+                onPressed: () => _scannerController.toggleTorch(),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black.withAlpha(128), // ~50% opacity
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScannerOverlayPainter extends CustomPainter {
+  final double scanBoxSize;
+
+  _ScannerOverlayPainter({required this.scanBoxSize});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Rect scanWindow = Rect.fromCenter(
+      center: size.center(Offset.zero),
+      width: scanBoxSize,
+      height: scanBoxSize,
+    );
+
+    final backgroundPath = Path()..addRect(Rect.largest);
+    final cutoutPath = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        scanWindow,
+        const Radius.circular(12),
+      ));
+
+    final overlayPath = Path.combine(
+      PathOperation.difference,
+      backgroundPath,
+      cutoutPath,
+    );
+
+    final overlayPaint = Paint()
+      ..color = Colors.black.withAlpha(153) // ~60% opacity
+      ..style = PaintingStyle.fill;
+
+    final borderPaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 3.0
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawPath(overlayPath, overlayPaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(scanWindow, const Radius.circular(12)),
+      borderPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ScannerOverlayPainter oldDelegate) {
+    return oldDelegate.scanBoxSize != scanBoxSize;
   }
 }

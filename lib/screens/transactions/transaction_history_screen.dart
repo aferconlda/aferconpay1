@@ -88,7 +88,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                         itemCount: transactions.length,
                         itemBuilder: (context, index) {
                           final transaction = transactions[index];
-                          final isRevenue = transaction.type == 'revenue';
+                          final isRevenue = transaction.amount >= 0;
                           final formattedDate = DateFormat(
                                   'dd MMM, yyyy HH:mm', 'pt_AO')
                               .format(transaction.date);
@@ -134,7 +134,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 ),
                               ),
                               trailing: Text(
-                                '${isRevenue ? '+' : '-'} ${currencyFormat.format(transaction.amount)}',
+                                isRevenue ? '+ ${currencyFormat.format(transaction.amount)}' : currencyFormat.format(transaction.amount),
                                 style: TextStyle(
                                   fontSize: 15.sp,
                                   fontWeight: FontWeight.bold,

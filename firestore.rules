@@ -1,93 +1,73 @@
 
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if a user is an admin
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // Helper function to check if the user is the owner of the document
+    // Funções auxiliares
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
-    
-    // USERS
+
+    function isAdmin() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Regras para a coleção de utilizadores
     match /users/{userId} {
+      // Leitura: Qualquer utilizador autenticado pode ler perfis.
       allow read: if request.auth != null;
+
+      // Criação: Um utilizador só pode criar o seu próprio documento.
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
 
-      // TRANSACTIONS & NOTIFICATIONS
+      // Atualização: Regras granulares para atualização.
+      allow update: if isOwner(userId) &&
+                      // O utilizador não pode alterar o seu próprio role, saldo ou status de verificação.
+                      !('role' in request.resource.data) &&
+                      !('balance' in request.resource.data) &&
+                      !('cashierFloatBalance' in request.resource.data) &&
+                      !('isVerified' in request.resource.data) &&
+                      !('kycStatus' in request.resource.data) &&
+                      // Permite a atualização de campos como displayName, phoneNumber, nif e fcmToken.
+                      request.resource.data.keys().hasAny(['displayName', 'phoneNumber', 'nif', 'fcmToken']);
+
+      // Subcoleções do utilizador
       match /transactions/{transactionId} {
-        allow read: if isOwner(userId);
-        allow list: if isOwner(userId);
-        allow create, update, delete: if false; 
+        allow read, list: if isOwner(userId);
+        allow create, update, delete: if false; // Apenas o servidor pode gerir transações.
       }
+
       match /notifications/{notificationId} {
-        allow read: if isOwner(userId);
-        allow list: if isOwner(userId);
+        allow read, list: if isOwner(userId);
+        // Permite ao utilizador marcar as suas próprias notificações como lidas.
         allow update: if isOwner(userId) && request.resource.data.keys().hasOnly(['read']);
-        allow create, delete: if false;
+        allow create, delete: if false; // Apenas o servidor pode criar notificações.
       }
     }
 
-    // EXCHANGE OFFERS (P2P) - REGRA CORRIGIDA
-    match /exchange_offers/{offerId} {
-      // Qualquer utilizador autenticado pode ver (listar e obter) as ofertas.
-      allow list, get: if request.auth != null;
-
-      // As regras de escrita (create, update, delete) são tratadas pelas Cloud Functions,
-      // que bypassam estas regras. Negar a escrita direta do cliente aumenta a segurança.
-      allow create, update, delete: if false;
-    }
-
-    // P2P TRANSACTIONS
-    match /p2p_transactions/{transactionId} {
-        allow create: if false; // A criação é feita apenas via Cloud Function (takeOffer)
-
-        // READ: Apenas participantes ou um admin podem ler uma transação.
-        allow get, list: if request.auth != null && (request.auth.uid in resource.data.participantIds || isAdmin());
-
-        // UPDATE: A atualização é feita apenas via Cloud Functions (confirmPayment, etc.)
-        allow update: if false;
-
-        // Subcollections for chat and disputes
-        match /messages/{messageId} {
-            allow list, get, create: if request.auth != null && (request.auth.uid in get(/databases/$(database)/documents/p2p_transactions/$(transactionId)).data.participantIds);
-            allow update, delete: if false;
-        }
-
-        match /dispute_messages/{messageId} {
-            allow list, get, create: if request.auth != null && (request.auth.uid in get(/databases/$(database)/documents/p2p_transactions/$(transactionId)).data.participantIds || isAdmin());
-            allow update, delete: if false;
-        }
-    }
-
-    // CREDIT REQUESTS
+    // Outras coleções...
     match /credit_requests/{requestId} {
       allow create: if request.auth != null;
       allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
       allow write: if isAdmin();
     }
 
-    // DEPOSIT REQUESTS
     match /deposit_requests/{requestId} {
       allow create: if request.auth != null;
       allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
-      allow write: if isAdmin(); 
+      allow write: if isAdmin();
     }
     
-    // WITHDRAWAL REQUESTS
     match /withdrawal_requests/{requestId} {
       allow create: if request.auth != null;
       allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
       allow write: if isAdmin();
     }
     
-    // Deprecated/Unused collections - Block all access
-    match /loans/{loanId} { allow read, write: if false; }
-    // A regra para p2p_offers foi removida, e a regra para exchange_offers foi corrigida.
+    // Coleções não utilizadas devem ser bloqueadas
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }

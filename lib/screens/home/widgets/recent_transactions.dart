@@ -50,7 +50,7 @@ class RecentTransactions extends StatelessWidget {
             itemCount: recentTransactions.length,
             itemBuilder: (context, index) {
               final transaction = recentTransactions[index];
-              final isRevenue = transaction.type == 'revenue';
+              final isRevenue = transaction.amount >= 0;
               return Card(
                 margin: EdgeInsets.symmetric(vertical: 6.h),
                 child: ListTile(
@@ -69,7 +69,7 @@ class RecentTransactions extends StatelessWidget {
                   title: Text(transaction.description, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
                   subtitle: Text(DateFormat('dd MMM, yyyy', 'pt_AO').format(transaction.date), style: theme.textTheme.bodySmall),
                   trailing: Text(
-                    '${isRevenue ? '+' : '-'} ${format.format(transaction.amount)}',
+                    isRevenue ? '+ ${format.format(transaction.amount)}' : format.format(transaction.amount),
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: isRevenue ? theme.primaryColor : theme.colorScheme.error,
                       fontWeight: FontWeight.bold,

@@ -21,14 +21,11 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   Future<void> _handleReceiptGeneration() async {
     setState(() => _isLoading = true);
 
-    // Captura o ScaffoldMessenger ANTES da chamada async
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     try {
-      // Usa o método estático com o nome correto
       await ReceiptService.generateAndShowReceipt(widget.transaction);
     } catch (e) {
-      // A verificação 'mounted' ainda é uma boa prática
       if (mounted) {
         scaffoldMessenger.showSnackBar(
           SnackBar(content: Text('Erro ao gerar o comprovativo: $e')),
@@ -43,9 +40,14 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isCredit = widget.transaction.amount >= 0;
+    
     final currencyFormat = NumberFormat.currency(locale: 'pt_AO', symbol: 'Kz');
-    final formattedDate = DateFormat('dd MMM, yyyy HH:mm', 'pt_AO').format(widget.transaction.date); // Corrected
-    final isRevenue = widget.transaction.type == 'revenue';
+    final String formattedAmount = isCredit
+        ? '+ ${currencyFormat.format(widget.transaction.amount)}'
+        : currencyFormat.format(widget.transaction.amount);
+
+    final formattedDate = DateFormat('dd MMM, yyyy HH:mm', 'pt_AO').format(widget.transaction.date);
 
     return Scaffold(
       appBar: const CustomAppBar(title: Text('Detalhes da Transação')),
@@ -54,7 +56,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildDetailCard(context, isRevenue, formattedDate, currencyFormat),
+            _buildDetailCard(context, isCredit, formattedDate, formattedAmount),
             const Spacer(),
             ElevatedButton.icon(
               icon: _isLoading ? const SizedBox.shrink() : const Icon(Icons.download_rounded),
@@ -65,7 +67,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.symmetric(horizontal: 32.w, vertical: 16.h),
                 textStyle: TextStyle(fontSize: 16.sp),
-                minimumSize: Size(double.infinity, 50.h), // Garante que o botão tenha uma altura mínima
+                minimumSize: Size(double.infinity, 50.h), 
               ),
             ),
             SizedBox(height: 20.h),
@@ -75,7 +77,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
     );
   }
 
-  Widget _buildDetailCard(BuildContext context, bool isRevenue, String formattedDate, NumberFormat currencyFormat) {
+  Widget _buildDetailCard(BuildContext context, bool isCredit, String formattedDate, String formattedAmount) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
@@ -87,10 +89,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
              SizedBox(height: 12.h),
             _buildDetailRow(context, 'Data:', formattedDate),
              SizedBox(height: 12.h),
-            _buildDetailRow(context, 'Tipo:', isRevenue ? 'Entrada' : 'Saída'),
+            _buildDetailRow(context, 'Tipo:', isCredit ? 'Entrada' : 'Saída'),
              SizedBox(height: 12.h),
-            _buildDetailRow(context, 'Valor:', currencyFormat.format(widget.transaction.amount),
-              valueColor: isRevenue ? Colors.green[800] : Colors.red[800]),
+            _buildDetailRow(context, 'Valor:', formattedAmount,
+              valueColor: isCredit ? Colors.green[800] : Colors.red[800]),
           ],
         ),
       ),

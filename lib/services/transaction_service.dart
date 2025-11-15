@@ -1,95 +1,75 @@
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Importar o serviço de autenticação
-import 'package:flutter/foundation.dart'; // Import for kDebugMode
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 class TransactionService {
-  // Get a reference to the Cloud Functions regional endpoint
+  // Aponta para a região correta das Cloud Functions
   final FirebaseFunctions _functions =
-      FirebaseFunctions.instanceFor(region: 'us-central1');
+      FirebaseFunctions.instanceFor(region: 'europe-west1');
 
-  /// Initiates a P2P (Peer-to-Peer) transfer between two users by calling a secure Cloud Function.
-  ///
-  /// This method no longer performs the transaction on the client side. Instead, it securely
-  /// invokes the 'p2pTransfer' Cloud Function, which handles the atomic transaction,
-  /// balance updates, transaction logging, and notifications on the server.
-  ///
-  /// This approach is more secure as it prevents client-side manipulation and centralizes
-  //  critical business logic.
-  ///
-  /// @param recipientId The ID of the user receiving the money.
-  /// @param amount The amount to transfer.
-  /// @param description A description for the transaction.
-  ///
-  /// @throws [FirebaseFunctionsException] if the Cloud Function call fails. The exception
-  /// contains a `code` and `message` that can be used to provide specific feedback to the user.
+  // Para desenvolvimento, permite usar o emulador local
+  TransactionService() {
+    if (kDebugMode) {
+      // _functions.useFunctionsEmulator('localhost', 5001);
+    }
+  }
+
+  /// Garante que o utilizador está autenticado e o token está atualizado.
+  Future<void> _ensureAuthenticated() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      throw FirebaseFunctionsException(
+        code: 'unauthenticated',
+        message: 'Utilizador não está autenticado.',
+      );
+    }
+    // Força a atualização do token para evitar "race conditions"
+    await currentUser.getIdToken(true);
+  }
+
+  /// Wrapper para chamar uma Cloud Function de forma segura e com gestão de erros centralizada.
+  Future<HttpsCallableResult> _callFunction(
+      String functionName, Map<String, dynamic> data) async {
+    await _ensureAuthenticated();
+    final HttpsCallable callable = _functions.httpsCallable(functionName);
+
+    try {
+      return await callable.call(data);
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('Erro na Cloud Function [$functionName]: [${e.code}] ${e.message}');
+      // A mensagem de erro já vem traduzida do nosso backend (translateErrorCode)
+      // Apenas a passamos à frente.
+      throw Exception(e.message ?? "Ocorreu um erro desconhecido.");
+    } catch (e) {
+      debugPrint('Erro inesperado ao chamar [$functionName]: $e');
+      throw Exception(
+          "Falha na comunicação com o servidor. Verifique a sua ligação.");
+    }
+  }
+
+  /// Inicia uma transferência P2P (Pessoa-para-Pessoa).
   Future<void> p2pTransfer({
     required String recipientId,
     required double amount,
     required String description,
   }) async {
-    try {
-      // For development, you might want to use the local functions emulator
-      if (kDebugMode) {
-        // To use the emulator, uncomment the following line.
-        // Make sure you have the emulator running.
-        // _functions.useFunctionsEmulator('localhost', 5001);
-      }
+    await _callFunction('p2pTransfer', {
+      'recipientId': recipientId,
+      'amount': amount,
+      'description': description,
+    });
+  }
 
-      // **A SOLUÇÃO DEFINITIVA:**
-      // Forçar a atualização do token de autenticação antes de chamar a função.
-      // Isto resolve problemas de "race condition" em que a função é chamada antes
-      // de o token de um login recente ser validado no backend.
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) {
-        throw FirebaseFunctionsException(
-          code: 'unauthenticated',
-          message: 'Utilizador não está autenticado.',
-        );
-      }
-      await currentUser.getIdToken(true); // O 'true' força a atualização.
-
-      // Get a callable reference to the 'p2pTransfer' function
-      final HttpsCallable callable = _functions.httpsCallable('p2pTransfer');
-
-      // Prepare the data to be sent to the function
-      // The senderId is automatically added by the Cloud Function from the auth context.
-      final Map<String, dynamic> data = {
-        'recipientId': recipientId,
-        'amount': amount,
-        'description': description,
-            };
-
-      // Invoke the function and wait for the result
-      final HttpsCallableResult result = await callable.call(data);
-
-      // The result from the Cloud Function can be used for logging or further actions
-      debugPrint('Cloud Function result: ${result.data}');
-    } on FirebaseFunctionsException catch (e) {
-      // The Cloud Function throws specific HttpsError codes which can be handled here.
-      // This allows for more specific user feedback.
-      // Example: 'unauthenticated', 'not-found', 'invalid-argument', 'failed-precondition'
-      debugPrint('Cloud Function Error: [${e.code}] ${e.message}');
-
-      // CORRECTED: Translated error messages to Portuguese.
-      String userMessage =
-          "Ocorreu um erro inesperado. Por favor, tente novamente mais tarde.";
-      if (e.code == 'failed-precondition') {
-        userMessage = "Saldo insuficiente para esta transferência.";
-      } else if (e.code == 'not-found') {
-        userMessage = "O destinatário não foi encontrado.";
-      } else if (e.code == 'invalid-argument') {
-        userMessage = "Os detalhes da transferência são inválidos.";
-      } else if (e.code == 'unauthenticated') {
-        userMessage = "A sua sessão expirou. Por favor, faça login novamente.";
-      }
-
-      throw Exception(userMessage);
-    } catch (e) {
-      // Catch any other unexpected errors
-      debugPrint(
-          'An unexpected error occurred while calling the Cloud Function: $e');
-      throw Exception(
-          "Falha ao iniciar a transferência. Verifique a sua ligação e tente novamente.");
-    }
+  /// Processa um pagamento via QR Code para um comerciante ou caixa.
+  Future<void> processQrPayment({
+    required String recipientId,
+    required double amount,
+    required String description,
+  }) async {
+    await _callFunction('processQrPayment', {
+      'recipientId': recipientId,
+      'amount': amount,
+      'description': description,
+    });
   }
 }
